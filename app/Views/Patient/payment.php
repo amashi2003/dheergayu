@@ -1,3 +1,16 @@
+<?php
+session_start();
+require_once __DIR__ . '/../../../config/payhere_config.php';
+
+// Check if user is logged in (optional - you can allow guest checkout)
+$userId = $_SESSION['user_id'] ?? null;
+$userName = $_SESSION['user_name'] ?? 'Guest User';
+$userEmail = $_SESSION['user_email'] ?? '';
+$userPhone = $_SESSION['user_phone'] ?? '';
+
+// Generate unique order ID
+$orderId = generateOrderId();
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -31,56 +44,38 @@
 
     <div class="container">
         <div class="checkout-grid">
-            <!-- Payment Information Card -->
+            <!-- Customer Information Card -->
             <div class="card">
-                <h2 class="card-title">Payment Information</h2>
+                <h2 class="card-title">Customer Information</h2>
                 
-                <form id="paymentForm">
+                <form id="customerForm">
                     <div class="form-group">
-                        <label for="cardNumber">Card Number</label>
-                        <div class="card-input">
-                            <input type="text" id="cardNumber" name="cardNumber" placeholder="1234 5678 9012 3456" maxlength="19" required>
-                            <div class="card-icon">CARD</div>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="expiryDate">Expiry Date</label>
-                            <input type="text" id="expiryDate" name="expiryDate" placeholder="MM/YY" maxlength="5" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="cvc">CVC</label>
-                            <input type="text" id="cvc" name="cvc" placeholder="123" maxlength="3" required>
-                        </div>
+                        <label for="customerName">Full Name *</label>
+                        <input type="text" id="customerName" name="customerName" value="<?= htmlspecialchars($userName) ?>" required>
                     </div>
 
                     <div class="form-group">
-                        <label for="cardholderName">Cardholder Name</label>
-                        <input type="text" id="cardholderName" name="cardholderName" placeholder="Enter name on card" required>
+                        <label for="customerEmail">Email *</label>
+                        <input type="email" id="customerEmail" name="customerEmail" value="<?= htmlspecialchars($userEmail) ?>" required>
                     </div>
 
                     <div class="form-group">
-                        <label for="country">Country</label>
-                        <select id="country" name="country" required>
-                            <option value="">Select country</option>
-                            <option value="LK" selected>Sri Lanka</option>
-                            <option value="IN">India</option>
-                            <option value="US">United States</option>
-                            <option value="UK">United Kingdom</option>
-                            <option value="AU">Australia</option>
-                        </select>
+                        <label for="customerPhone">Phone *</label>
+                        <input type="tel" id="customerPhone" name="customerPhone" value="<?= htmlspecialchars($userPhone) ?>" placeholder="0712345678" required>
                     </div>
 
-                    <div class="checkbox-group">
-                        <div class="checkbox-container">
-                            <input type="checkbox" id="saveCard" name="saveCard">
-                            <label for="saveCard" class="checkbox-label">Save payment information safely and securely</label>
-                        </div>
+                    <div class="form-group">
+                        <label for="address">Delivery Address *</label>
+                        <textarea id="address" name="address" rows="3" placeholder="Enter your delivery address" required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="city">City *</label>
+                        <input type="text" id="city" name="city" placeholder="e.g., Colombo" required>
                     </div>
 
                     <div class="payment-buttons">
-                        <button type="submit" class="pay-btn">Pay Now</button>
+                        <button type="button" class="pay-btn" onclick="proceedToPayment()">Proceed to Payment</button>
                         <button type="button" class="cancel-btn" onclick="cancelPayment()">Cancel</button>
                     </div>
                 </form>
@@ -100,6 +95,29 @@
             </div>
         </div>
     </div>
+
+    <!-- Hidden PayHere Form -->
+    <form method="post" action="<?= PAYHERE_CHECKOUT_URL ?>" id="payhereForm" style="display: none;">
+        <input type="hidden" name="merchant_id" value="<?= PAYHERE_MERCHANT_ID ?>">
+        <input type="hidden" name="return_url" value="<?= PAYHERE_RETURN_URL ?>">
+        <input type="hidden" name="cancel_url" value="<?= PAYHERE_CANCEL_URL ?>">
+        <input type="hidden" name="notify_url" value="<?= PAYHERE_NOTIFY_URL ?>">
+        
+        <input type="hidden" name="order_id" id="order_id" value="<?= $orderId ?>">
+        <input type="hidden" name="items" id="items" value="">
+        <input type="hidden" name="currency" value="<?= PAYHERE_CURRENCY ?>">
+        <input type="hidden" name="amount" id="amount" value="">
+        
+        <input type="hidden" name="first_name" id="first_name" value="">
+        <input type="hidden" name="last_name" id="last_name" value="">
+        <input type="hidden" name="email" id="email" value="">
+        <input type="hidden" name="phone" id="phone" value="">
+        <input type="hidden" name="address" id="delivery_address" value="">
+        <input type="hidden" name="city" id="delivery_city" value="">
+        <input type="hidden" name="country" value="Sri Lanka">
+        
+        <input type="hidden" name="hash" id="hash" value="">
+    </form>
 
     <footer class="main-footer">
         <div class="container">
@@ -207,168 +225,98 @@
         }
 
         function cancelPayment() {
-            if (confirm('Are you sure you want to cancel this payment?')) {
+            if (confirm('Are you sure you want to cancel?')) {
                 window.location.href = 'cart.php';
             }
         }
 
-        // Format card number input
-        document.getElementById('cardNumber').addEventListener('input', function(e) {
-            let value = e.target.value.replace(/\s/g, '').replace(/\D/g, '');
-            let formattedValue = value.replace(/(.{4})/g, '$1 ').trim();
-            
-            if (formattedValue.length <= 19) {
-                e.target.value = formattedValue;
-            }
+        async function proceedToPayment() {
+            // Validate form
+            const customerName = document.getElementById('customerName').value.trim();
+            const customerEmail = document.getElementById('customerEmail').value.trim();
+            const customerPhone = document.getElementById('customerPhone').value.trim();
+            const address = document.getElementById('address').value.trim();
+            const city = document.getElementById('city').value.trim();
 
-            // Update card icon based on card number
-            const cardIcon = document.querySelector('.card-icon');
-            if (value.startsWith('4')) {
-                cardIcon.textContent = 'VISA';
-                cardIcon.style.background = '#1a73e8';
-            } else if (value.startsWith('5')) {
-                cardIcon.textContent = 'MC';
-                cardIcon.style.background = '#eb001b';
-            } else if (value.startsWith('3')) {
-                cardIcon.textContent = 'AMEX';
-                cardIcon.style.background = '#006fcf';
-            } else {
-                cardIcon.textContent = 'CARD';
-                cardIcon.style.background = '#666';
-            }
-        });
-
-        // Format expiry date input
-        document.getElementById('expiryDate').addEventListener('input', function(e) {
-            let value = e.target.value.replace(/\D/g, '');
-            if (value.length >= 2) {
-                value = value.replace(/(\d{2})(\d+)/, '$1/$2');
-            }
-            e.target.value = value;
-        });
-
-        // Format CVC input
-        document.getElementById('cvc').addEventListener('input', function(e) {
-            e.target.value = e.target.value.replace(/\D/g, '');
-        });
-
-        // Expiry date validation
-        document.getElementById('expiryDate').addEventListener('blur', function() {
-            const value = this.value;
-            if (value.length === 5) {
-                const [month, year] = value.split('/');
-                const currentDate = new Date();
-                const currentYear = currentDate.getFullYear() % 100;
-                const currentMonth = currentDate.getMonth() + 1;
-                
-                const inputMonth = parseInt(month);
-                const inputYear = parseInt(year);
-                
-                if (inputMonth < 1 || inputMonth > 12) {
-                    this.style.borderColor = '#dc3545';
-                    alert('Please enter a valid month (01-12)');
-                } else if (inputYear < currentYear || (inputYear === currentYear && inputMonth < currentMonth)) {
-                    this.style.borderColor = '#dc3545';
-                    alert('Card has expired. Please enter a valid expiry date.');
-                } else {
-                    this.style.borderColor = '#5CB85C';
-                }
-            }
-        });
-
-        // Auto-uppercase cardholder name
-        document.getElementById('cardholderName').addEventListener('input', function() {
-            this.value = this.value.toUpperCase();
-        });
-
-        // Real-time validation
-        const inputs = document.querySelectorAll('input[required], select[required]');
-        inputs.forEach(input => {
-            input.addEventListener('input', function() {
-                if (this.value.trim()) {
-                    this.style.borderColor = '#5CB85C';
-                } else {
-                    this.style.borderColor = '#e1e5e9';
-                }
-            });
-        });
-
-        // Form submission
-        document.getElementById('paymentForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const cardNumber = document.getElementById('cardNumber').value.replace(/\s/g, '');
-            const expiryDate = document.getElementById('expiryDate').value;
-            const cvc = document.getElementById('cvc').value;
-            const cardholderName = document.getElementById('cardholderName').value;
-            const country = document.getElementById('country').value;
-            
-            // Basic validation
-            if (cardNumber.length < 13 || cardNumber.length > 19) {
-                alert('Please enter a valid card number!');
+            if (!customerName || !customerEmail || !customerPhone || !address || !city) {
+                alert('Please fill in all required fields!');
                 return;
             }
-            
-            if (expiryDate.length !== 5) {
-                alert('Please enter a valid expiry date (MM/YY)!');
+
+            // Validate email
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(customerEmail)) {
+                alert('Please enter a valid email address!');
                 return;
             }
-            
-            if (cvc.length < 3) {
-                alert('Please enter a valid CVC!');
+
+            // Validate phone (Sri Lankan format)
+            const phoneRegex = /^0[0-9]{9}$/;
+            if (!phoneRegex.test(customerPhone)) {
+                alert('Please enter a valid phone number (e.g., 0712345678)!');
                 return;
             }
-            
-            if (!cardholderName.trim()) {
-                alert('Please enter the cardholder name!');
-                return;
-            }
-            
-            if (!country) {
-                alert('Please select your country!');
-                return;
-            }
-            
+
             // Calculate total
             const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
             const shipping = subtotal > 5000 ? 0 : 250;
             const total = subtotal + shipping;
-            
-            // Simulate payment process
-            const payBtn = document.querySelector('.pay-btn');
-            payBtn.textContent = 'PROCESSING...';
-            payBtn.disabled = true;
-            
-            setTimeout(async () => {
-                const transactionId = 'TXN' + Math.random().toString(36).substr(2, 9).toUpperCase();
-                
-                alert(`Payment Successful!\n\nTransaction Details:\nAmount: Rs ${total.toFixed(2)}\nTransaction ID: ${transactionId}\n\nYour order has been confirmed. You will receive a confirmation email shortly with tracking information.`);
-                
-                payBtn.textContent = 'PAYMENT SUCCESSFUL ✓';
-                payBtn.style.background = '#5CB85C';
-                
-                // Clear cart from database
-                try {
-                    const formData = new FormData();
-                    formData.append('action', 'clear');
+
+            // Prepare items description
+            const itemsDesc = cartItems.map(item => `${item.name} x${item.quantity}`).join(', ');
+
+            // Split name into first and last
+            const nameParts = customerName.split(' ');
+            const firstName = nameParts[0];
+            const lastName = nameParts.slice(1).join(' ') || firstName;
+
+            // Fill PayHere form
+            document.getElementById('first_name').value = firstName;
+            document.getElementById('last_name').value = lastName;
+            document.getElementById('email').value = customerEmail;
+            document.getElementById('phone').value = customerPhone;
+            document.getElementById('delivery_address').value = address;
+            document.getElementById('delivery_city').value = city;
+            document.getElementById('items').value = itemsDesc;
+            document.getElementById('amount').value = total.toFixed(2);
+
+            // Generate hash via server
+            try {
+                const formData = new FormData();
+                formData.append('order_id', '<?= $orderId ?>');
+                formData.append('amount', total.toFixed(2));
+
+                const response = await fetch('/dheergayu/public/api/generate-payhere-hash.php', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('hash').value = data.hash;
                     
-                    await fetch('/dheergayu/public/api/cart-api.php', {
-                        method: 'POST',
-                        body: formData
-                    });
-                } catch (error) {
-                    console.error('Error clearing cart:', error);
+                    // Submit to PayHere
+                    document.getElementById('payhereForm').submit();
+                } else {
+                    alert('Error preparing payment. Please try again.');
                 }
-                
-                setTimeout(() => {
-                    alert('Thank you for your purchase! Redirecting to home page...');
-                    window.location.href = 'home.php';
-                }, 2000);
-            }, 3000);
-        });
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to proceed to payment. Please try again.');
+            }
+        }
 
         // Load order summary on page load
         loadOrderSummary();
+
+        // Phone validation
+        document.getElementById('customerPhone').addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '');
+            if (this.value.length > 10) {
+                this.value = this.value.slice(0, 10);
+            }
+        });
     </script>
 </body>
 </html>
