@@ -726,3 +726,91 @@ POST Data: Array
     [doctor_id] => 13
     [doctor_name] => Dr. Silva
 )
+
+========== 2026-03-31 21:50:34 ==========
+Endpoint: book-consultation.php
+Session User ID: 3
+POST Data: Array
+(
+    [patient_name] => Amashi Vithanage
+    [age] => 19
+    [gender] => Female
+    [email] => patient1@gmail.com
+    [phone] => 0712345678
+    [treatment_type] => General Consultation
+    [appointment_date] => 2026-04-03
+    [appointment_time] => 09:00:00
+    [payment_method] => onsite
+    [doctor_id] => 13
+    [doctor_name] => Dr. Silva
+)
+
+ERROR: Unknown column 'patient_number' in 'field list'
+Stack trace: #0 C:\xampp\htdocs\dheergayu\public\api\book-consultation.php(152): mysqli->prepare('SELECT patient_...')
+#1 {main}
+
+========== 2026-03-31 21:50:45 ==========
+Endpoint: book-consultation.php
+Session User ID: 3
+POST Data: Array
+(
+    [patient_name] => Amashi Vithanage
+    [age] => 19
+    [gender] => Female
+    [email] => patient1@gmail.com
+    [phone] => 0712345678
+    [treatment_type] => General Consultation
+    [appointment_date] => 2026-04-03
+    [appointment_time] => 09:30:00
+    [payment_method] => onsite
+    [doctor_id] => 13
+    [doctor_name] => Dr. Silva
+)
+
+ERROR: Unknown column 'patient_number' in 'field list'
+Stack trace: #0 C:\xampp\htdocs\dheergayu\public\api\book-consultation.php(152): mysqli->prepare('SELECT patient_...')
+#1 {main}
+
+========== 2026-03-31 21:51:07 ==========
+Endpoint: book-consultation.php
+Session User ID: 3
+POST Data: Array
+(
+    [patient_name] => Amashi Vithanage
+    [age] => 19
+    [gender] => Female
+    [email] => patient1@gmail.com
+    [phone] => 0712345678
+    [treatment_type] => General Consultation
+    [appointment_date] => 2026-04-07
+    [appointment_time] => 09:00:00
+    [payment_method] => onsite
+    [doctor_id] => 15
+    [doctor_name] => Dr. Perera
+)
+
+ERROR: Unknown column 'patient_number' in 'field list'
+Stack trace: #0 C:\xampp\htdocs\dheergayu\public\api\book-consultation.php(152): mysqli->prepare('SELECT patient_...')
+#1 {main}
+
+========== 2026-03-31 21:51:20 ==========
+Endpoint: book-consultation.php
+Session User ID: 3
+POST Data: Array
+(
+    [patient_name] => Amashi Vithanage
+    [age] => 19
+    [gender] => Female
+    [email] => patient1@gmail.com
+    [phone] => 0712345678
+    [treatment_type] => General Consultation
+    [appointment_date] => 2026-04-01
+    [appointment_time] => 09:00:00
+    [payment_method] => onsite
+    [doctor_id] => 13
+    [doctor_name] => Dr. Silva
+)
+
+ERROR: Unknown column 'patient_number' in 'field list'
+Stack trace: #0 C:\xampp\htdocs\dheergayu\public\api\book-consultation.php(152): mysqli->prepare('SELECT patient_...')
+#1 {main}

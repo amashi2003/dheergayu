@@ -1,228 +1,135 @@
 <?php
+/**
+ * /dheergayu/app/Views/Patient/payment_notify.php
+ * PayHere IPN (Instant Payment Notification) Handler.
+ *
+ * PayHere POST fields received:
+ *   merchant_id, order_id, payment_id, payhere_amount, payhere_currency,
+ *   status_code, md5sig, custom_1 (user_id), custom_2 (cart_id)
+ *
+ * Status codes:  2 = success | 0 = pending | -1 = cancelled | -2 = failed
+ */
+
+// IPN must not start sessions the usual way – use a separate name
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 require_once __DIR__ . '/../../../config/payhere_config.php';
 require_once __DIR__ . '/../../../config/config.php';
 
-function logPayhere(string $message): void
-{
-    $logFile = __DIR__ . '/../../../logs/payhere_notifications.log';
-    file_put_contents($logFile, date('Y-m-d H:i:s') . ' - ' . $message . PHP_EOL, FILE_APPEND);
+// ── Log all incoming notifications ───────────────────────────────────────────
+$logDir  = __DIR__ . '/../../../logs/';
+$logFile = $logDir . 'payhere_notifications.log';
+
+if (!is_dir($logDir)) {
+    mkdir($logDir, 0755, true);
 }
 
-function getCartItems(mysqli $conn, int $cartId): array
-{
-    $stmt = $conn->prepare("SELECT product_id, product_type, product_name, price, quantity, image FROM cart_items WHERE cart_id = ?");
-    $stmt->bind_param('i', $cartId);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $rows = $result->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
-    return $rows;
+$logLine = date('Y-m-d H:i:s') . " | POST=" . json_encode($_POST) . "\n";
+file_put_contents($logFile, $logLine, FILE_APPEND);
+
+// ── Read POST data ────────────────────────────────────────────────────────────
+$merchant_id      = $_POST['merchant_id']      ?? '';
+$order_id         = $_POST['order_id']         ?? '';
+$payhere_amount   = $_POST['payhere_amount']   ?? '';
+$payhere_currency = $_POST['payhere_currency'] ?? '';
+$status_code      = (int)($_POST['status_code'] ?? -99);
+$md5sig           = $_POST['md5sig']           ?? '';
+$payment_id       = $_POST['payment_id']       ?? '';
+$custom_1         = $_POST['custom_1']         ?? '';  // user_id
+$custom_2         = $_POST['custom_2']         ?? '';  // cart_id (optional)
+
+// ── Verify signature ──────────────────────────────────────────────────────────
+$isValid = verifyPayherePayment(
+    $merchant_id, $order_id, $payhere_amount,
+    $payhere_currency, $status_code, $md5sig
+);
+
+if (!$isValid) {
+    file_put_contents($logFile,
+        date('Y-m-d H:i:s') . " | INVALID SIGNATURE for order $order_id\n",
+        FILE_APPEND
+    );
+    http_response_code(400);
+    echo "Invalid payment verification";
+    exit;
 }
 
-function resolveInventoryProductId(mysqli $conn, array $item): ?int
-{
-    $candidateName = trim((string)($item['product_name'] ?? ''));
-    if ($candidateName === '') {
-        return null;
-    }
-    $stmt = $conn->prepare("SELECT product_id FROM products WHERE name = ? LIMIT 1");
-    $stmt->bind_param('s', $candidateName);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    return $row ? (int)$row['product_id'] : null;
-}
+// ── Act on status ─────────────────────────────────────────────────────────────
+if ($status_code == 2) {
+    // ── Payment successful ────────────────────────────────────────────────────
+    // Call process-order via HTTP so it runs in full context with a session
+    $userId = $custom_1 ? (int)$custom_1 : null;
 
-function deductBatchStock(mysqli $conn, int $productId, int $qtyNeeded, string $productName): void
-{
-    $batchStmt = $conn->prepare("
-        SELECT batch_number, quantity
-        FROM batches
-        WHERE product_id = ? AND quantity > 0
-        ORDER BY exp ASC, batch_id ASC
-    ");
-    $batchStmt->bind_param('i', $productId);
-    $batchStmt->execute();
-    $batches = $batchStmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $batchStmt->close();
+    $postData = http_build_query([
+        'action'         => 'process',
+        'order_id'       => $order_id,
+        'payment_id'     => $payment_id,
+        'amount'         => $payhere_amount,
+        'user_id'        => $userId ?? 0,
+        // Customer details are not sent by PayHere IPN; order may have been
+        // pre-created with them already by the pending call in payment.php.
+    ]);
 
-    $available = 0;
-    foreach ($batches as $batch) {
-        $available += (int)$batch['quantity'];
-    }
-    if ($available < $qtyNeeded) {
-        throw new Exception('Insufficient stock for "' . $productName . '". Required: ' . $qtyNeeded . ', Available: ' . $available);
-    }
+    $ctx = stream_context_create([
+        'http' => [
+            'method'  => 'POST',
+            'header'  => "Content-Type: application/x-www-form-urlencoded\r\n",
+            'content' => $postData,
+            'timeout' => 15,
+        ]
+    ]);
 
-    $remaining = $qtyNeeded;
-    $updateStmt = $conn->prepare("UPDATE batches SET quantity = quantity - ? WHERE product_id = ? AND batch_number = ?");
-    foreach ($batches as $batch) {
-        if ($remaining <= 0) {
-            break;
-        }
-        $take = min($remaining, (int)$batch['quantity']);
-        $batchNumber = (string)$batch['batch_number'];
-        $updateStmt->bind_param('iis', $take, $productId, $batchNumber);
-        $updateStmt->execute();
-        $remaining -= $take;
-    }
-    $updateStmt->close();
-}
+    $response = @file_get_contents(
+        'http://localhost/dheergayu/public/api/process-order.php',
+        false, $ctx
+    );
 
-try {
-    $merchantId = $_POST['merchant_id'] ?? '';
-    $orderId = $_POST['order_id'] ?? '';
-    $payhereAmount = $_POST['payhere_amount'] ?? '';
-    $payhereCurrency = $_POST['payhere_currency'] ?? '';
-    $statusCode = (string)($_POST['status_code'] ?? '');
-    $md5sig = $_POST['md5sig'] ?? '';
-    $paymentId = $_POST['payment_id'] ?? '';
-    $customUserId = (int)($_POST['custom_1'] ?? 0);
-    $customCartId = (int)($_POST['custom_2'] ?? 0);
+    $result = $response ? json_decode($response, true) : null;
 
-    $firstName = $_POST['first_name'] ?? '';
-    $lastName = $_POST['last_name'] ?? '';
-    $customerName = trim($firstName . ' ' . $lastName);
-    $customerEmail = $_POST['email'] ?? '';
-    $customerPhone = $_POST['phone'] ?? '';
-    $deliveryAddress = $_POST['address'] ?? '';
-    $deliveryCity = $_POST['city'] ?? '';
+    file_put_contents($logFile,
+        date('Y-m-d H:i:s') . " | PROCESSED order=$order_id result=" . json_encode($result) . "\n",
+        FILE_APPEND
+    );
 
-    logPayhere(json_encode($_POST));
+    echo "Payment processed";
 
-    if (!verifyPayherePayment($merchantId, $orderId, $payhereAmount, $payhereCurrency, $statusCode, $md5sig)) {
-        http_response_code(400);
-        echo 'Invalid payment verification';
-        exit;
-    }
-
-    if ($orderId === '') {
-        throw new Exception('Missing order_id');
-    }
-
-    $statusMap = [
-        '2' => 'paid',
-        '0' => 'pending',
-        '-1' => 'cancelled',
-        '-2' => 'failed',
-        '-3' => 'failed',
-    ];
-    $orderStatus = $statusMap[$statusCode] ?? 'failed';
-
-    if ($orderStatus !== 'paid') {
-        $stmt = $conn->prepare("
-            INSERT INTO orders (
-                order_id, payment_id, user_id, amount, currency, payment_method, status,
-                customer_name, customer_email, customer_phone, delivery_address, delivery_city, order_items
-            ) VALUES (?, ?, ?, ?, ?, 'payhere', ?, ?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE
-                payment_id = VALUES(payment_id),
-                status = VALUES(status),
-                amount = VALUES(amount),
-                currency = VALUES(currency),
-                customer_name = VALUES(customer_name),
-                customer_email = VALUES(customer_email),
-                customer_phone = VALUES(customer_phone),
-                delivery_address = VALUES(delivery_address),
-                delivery_city = VALUES(delivery_city),
-                order_items = VALUES(order_items),
-                updated_at = NOW()
-        ");
-        $emptyItems = '';
-        $stmt->bind_param(
-            'ssidssssssss',
-            $orderId,
-            $paymentId,
-            $customUserId,
-            $payhereAmount,
-            $payhereCurrency,
-            $orderStatus,
-            $customerName,
-            $customerEmail,
-            $customerPhone,
-            $deliveryAddress,
-            $deliveryCity,
-            $emptyItems
-        );
+} elseif ($status_code == 0) {
+    // Pending (e.g. bank transfer)
+    $stmt = $conn->prepare(
+        "UPDATE orders SET status = 'pending' WHERE order_id = ?"
+    );
+    if ($stmt) {
+        $stmt->bind_param('s', $order_id);
         $stmt->execute();
         $stmt->close();
-        echo 'Payment status recorded';
-        exit;
     }
+    echo "Payment pending";
 
-    if ($customCartId <= 0) {
-        throw new Exception('Missing cart_id in custom_2');
-    }
-
-    $conn->begin_transaction();
-
-    $items = getCartItems($conn, $customCartId);
-    if (empty($items)) {
-        throw new Exception('No cart items found for paid order');
-    }
-
-    $orderItemsText = json_encode($items, JSON_UNESCAPED_UNICODE);
-
-    $stmt = $conn->prepare("
-        INSERT INTO orders (
-            order_id, payment_id, user_id, amount, currency, payment_method, status,
-            customer_name, customer_email, customer_phone, delivery_address, delivery_city, order_items
-        ) VALUES (?, ?, ?, ?, ?, 'payhere', 'paid', ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-            payment_id = VALUES(payment_id),
-            status = 'paid',
-            amount = VALUES(amount),
-            currency = VALUES(currency),
-            customer_name = VALUES(customer_name),
-            customer_email = VALUES(customer_email),
-            customer_phone = VALUES(customer_phone),
-            delivery_address = VALUES(delivery_address),
-            delivery_city = VALUES(delivery_city),
-            order_items = VALUES(order_items),
-            updated_at = NOW()
-    ");
-    $stmt->bind_param(
-        'ssidsssssss',
-        $orderId,
-        $paymentId,
-        $customUserId,
-        $payhereAmount,
-        $payhereCurrency,
-        $customerName,
-        $customerEmail,
-        $customerPhone,
-        $deliveryAddress,
-        $deliveryCity,
-        $orderItemsText
+} elseif ($status_code == -1) {
+    // Cancelled by user
+    $stmt = $conn->prepare(
+        "UPDATE orders SET status = 'cancelled' WHERE order_id = ?"
     );
-    $stmt->execute();
-    $stmt->close();
-
-    foreach ($items as $item) {
-        $qty = (int)($item['quantity'] ?? 0);
-        if ($qty <= 0) {
-            continue;
-        }
-        $inventoryProductId = resolveInventoryProductId($conn, $item);
-        if (!$inventoryProductId) {
-            throw new Exception('Product not found in inventory: ' . ($item['product_name'] ?? 'Unknown'));
-        }
-        deductBatchStock($conn, $inventoryProductId, $qty, (string)$item['product_name']);
+    if ($stmt) {
+        $stmt->bind_param('s', $order_id);
+        $stmt->execute();
+        $stmt->close();
     }
+    echo "Payment cancelled";
 
-    $clearStmt = $conn->prepare("DELETE FROM cart_items WHERE cart_id = ?");
-    $clearStmt->bind_param('i', $customCartId);
-    $clearStmt->execute();
-    $clearStmt->close();
-
-    $conn->commit();
-    echo 'Payment processed successfully';
-} catch (Exception $e) {
-    if (isset($conn) && $conn instanceof mysqli) {
-        @$conn->rollback();
+} else {
+    // Failed (-2) or chargeback (-3)
+    $stmt = $conn->prepare(
+        "UPDATE orders SET status = 'failed' WHERE order_id = ?"
+    );
+    if ($stmt) {
+        $stmt->bind_param('s', $order_id);
+        $stmt->execute();
+        $stmt->close();
     }
-    logPayhere('ERROR: ' . $e->getMessage());
-    http_response_code(500);
-    echo 'Error processing payment';
+    echo "Payment failed";
 }
-?>
+
+$conn->close();

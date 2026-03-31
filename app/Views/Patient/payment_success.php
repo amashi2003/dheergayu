@@ -1,3 +1,59 @@
+<?php
+// /dheergayu/app/Views/Patient/payment_success.php
+session_start();
+require_once __DIR__ . '/../../../config/config.php';
+
+$orderId   = htmlspecialchars($_GET['order_id']   ?? '');
+$simulated = isset($_GET['simulated']);
+
+// ── Server-side: finalise order if not already done ───────────────────────────
+// This handles the PayHere return_url redirect.
+// If IPN already processed it, process-order.php will detect 'already_done' and skip.
+$processResult = null;
+if ($orderId && !$simulated) {
+    // For real PayHere returns we only have order_id in GET.
+    // Session may still have the pending order data saved by payment.php.
+    $postData = http_build_query([
+        'action'         => 'process',
+        'order_id'       => $orderId,
+        'customer_name'  => $_SESSION['po_name']    ?? '',
+        'customer_email' => $_SESSION['po_email']   ?? '',
+        'customer_phone' => $_SESSION['po_phone']   ?? '',
+        'address'        => $_SESSION['po_address'] ?? '',
+        'city'           => $_SESSION['po_city']    ?? '',
+        'amount'         => $_SESSION['po_amount']  ?? 0,
+        'user_id'        => $_SESSION['user_id']    ?? 0,
+    ]);
+
+    $ctx = stream_context_create([
+        'http' => [
+            'method'  => 'POST',
+            'header'  => "Content-Type: application/x-www-form-urlencoded\r\n" .
+                         "Cookie: PHPSESSID=" . session_id() . "\r\n",
+            'content' => $postData,
+            'timeout' => 10,
+        ]
+    ]);
+
+    $raw = @file_get_contents(
+        'http://localhost/dheergayu/public/api/process-order.php',
+        false, $ctx
+    );
+    if ($raw) {
+        $processResult = json_decode($raw, true);
+    }
+}
+
+// Fetch order details for display
+$orderRow = null;
+if ($orderId) {
+    $stmt = $conn->prepare("SELECT * FROM orders WHERE order_id = ? LIMIT 1");
+    $stmt->bind_param('s', $orderId);
+    $stmt->execute();
+    $orderRow = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,181 +62,122 @@
     <title>Payment Successful - Dheergayu</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;600;700&display=swap');
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin:0; padding:0; box-sizing:border-box; }
         body {
             font-family: 'Roboto', sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
+            display: flex; align-items: center; justify-content: center; padding: 20px;
         }
-
         .success-container {
-            background: white;
-            border-radius: 20px;
-            padding: 60px 40px;
-            text-align: center;
-            max-width: 500px;
-            width: 100%;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            background: white; border-radius: 20px; padding: 50px 40px;
+            text-align: center; max-width: 520px; width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,.3);
         }
-
         .success-icon {
-            width: 100px;
-            height: 100px;
-            background: #4CAF50;
-            border-radius: 50%;
-            margin: 0 auto 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            animation: scaleIn 0.5s ease;
+            width: 100px; height: 100px; background: #4CAF50; border-radius: 50%;
+            margin: 0 auto 28px; display: flex; align-items: center; justify-content: center;
+            animation: scaleIn .5s ease;
         }
-
-        .success-icon::before {
-            content: '✓';
-            font-size: 60px;
-            color: white;
-            font-weight: bold;
-        }
-
+        .success-icon::before { content:'✓'; font-size:58px; color:white; font-weight:bold; }
         @keyframes scaleIn {
-            0% { transform: scale(0); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
+            0%  { transform:scale(0); }
+            50% { transform:scale(1.1); }
+            100%{ transform:scale(1); }
         }
-
-        h1 {
-            color: #333;
-            font-size: 2rem;
-            margin-bottom: 15px;
+        h1 { color:#333; font-size:2rem; margin-bottom:12px; }
+        .order-box {
+            background:#f5f5f5; padding:16px; border-radius:10px;
+            margin:22px 0; font-family:monospace; font-size:1rem; color:#555;
         }
-
-        .order-id {
-            background: #f5f5f5;
-            padding: 15px;
-            border-radius: 10px;
-            margin: 25px 0;
-            font-family: monospace;
-            font-size: 1.1rem;
-            color: #666;
-        }
-
-        .order-id strong {
-            color: #333;
-        }
-
-        .message {
-            color: #666;
-            font-size: 1.1rem;
-            line-height: 1.6;
-            margin-bottom: 30px;
-        }
-
-        .btn {
-            display: inline-block;
-            padding: 15px 40px;
-            background: linear-gradient(135deg, #8B7355, #A0916B);
-            color: white;
-            text-decoration: none;
-            border-radius: 10px;
-            font-weight: 600;
-            font-size: 1rem;
-            transition: all 0.3s;
-            margin: 10px;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(139, 115, 85, 0.4);
-        }
-
-        .btn-secondary {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-        }
-
+        .order-box strong { color:#333; }
+        .info-grid { display:grid; gap:14px; margin:22px 0; }
         .info-box {
-            background: #e8f5e9;
-            border-left: 4px solid #4CAF50;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 25px 0;
-            text-align: left;
+            background:#e8f5e9; border-left:4px solid #4CAF50;
+            padding:14px; border-radius:5px; text-align:left;
         }
-
-        .info-box h3 {
-            color: #2e7d32;
-            margin-bottom: 10px;
-            font-size: 1rem;
+        .info-box h3 { color:#2e7d32; margin-bottom:6px; font-size:.95rem; }
+        .info-box p  { color:#555; font-size:.87rem; line-height:1.5; }
+        .detail-row  { display:flex; justify-content:space-between; padding:6px 0;
+                       border-bottom:1px solid #f0f0f0; font-size:.92rem; }
+        .detail-row:last-child { border:none; }
+        .detail-label { color:#666; }
+        .detail-value { font-weight:600; color:#333; }
+        .btn {
+            display:inline-block; padding:13px 34px;
+            background:linear-gradient(135deg,#8B7355,#A0916B);
+            color:white; text-decoration:none; border-radius:10px;
+            font-weight:600; font-size:.95rem; transition:all .3s; margin:8px;
         }
-
-        .info-box p {
-            color: #555;
-            font-size: 0.9rem;
-            line-height: 1.5;
-        }
+        .btn:hover { transform:translateY(-2px); box-shadow:0 5px 20px rgba(139,115,85,.4); }
+        .btn-sec { background:linear-gradient(135deg,#667eea,#764ba2); }
+        .message { color:#666; font-size:1rem; line-height:1.6; margin-bottom:20px; }
     </style>
 </head>
 <body>
-    <div class="success-container">
-        <div class="success-icon"></div>
-        
-        <h1>Payment Successful!</h1>
-        
-        <div class="order-id">
-            <strong>Order ID:</strong> 
-            <?php echo htmlspecialchars($_GET['order_id'] ?? 'N/A'); ?>
+<div class="success-container">
+    <div class="success-icon"></div>
+    <h1>Payment Successful!</h1>
+
+    <div class="order-box">
+        <strong>Order ID:</strong> <?= $orderId ?: 'N/A' ?>
+    </div>
+
+    <?php if ($orderRow): ?>
+    <div style="background:#f9f9f9;border-radius:10px;padding:18px;margin:18px 0;text-align:left;">
+        <div class="detail-row">
+            <span class="detail-label">Amount Paid</span>
+            <span class="detail-value">Rs. <?= number_format((float)$orderRow['amount'], 2) ?></span>
         </div>
-
-        <p class="message">
-            Thank you for your purchase! Your order has been confirmed and will be processed shortly.
-        </p>
-
-        <div class="info-box">
-            <h3>📧 Confirmation Email Sent</h3>
-            <p>We've sent an order confirmation email to your registered email address. Please check your inbox (and spam folder).</p>
+        <div class="detail-row">
+            <span class="detail-label">Customer</span>
+            <span class="detail-value"><?= htmlspecialchars($orderRow['customer_name'] ?? '—') ?></span>
         </div>
-
-        <div class="info-box">
-            <h3>📦 Delivery Information</h3>
-            <p>Your order will be delivered within 3-5 business days. You'll receive a tracking number via SMS once your order is dispatched.</p>
+        <div class="detail-row">
+            <span class="detail-label">City</span>
+            <span class="detail-value"><?= htmlspecialchars($orderRow['delivery_city'] ?? '—') ?></span>
         </div>
-
-        <div style="margin-top: 40px;">
-            <a href="/dheergayu/app/Views/Patient/home.php" class="btn">Back to Home</a>
-            <a href="/dheergayu/app/Views/Patient/products.php" class="btn btn-secondary">Continue Shopping</a>
+        <div class="detail-row">
+            <span class="detail-label">Items</span>
+            <span class="detail-value" style="max-width:250px;text-align:right;">
+                <?= htmlspecialchars($orderRow['order_items'] ?? '—') ?>
+            </span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Status</span>
+            <span class="detail-value" style="color:#4CAF50;">
+                <?= ucfirst($orderRow['status'] ?? 'paid') ?>
+            </span>
         </div>
     </div>
-    <script>
-        (async function finalizeSandboxPayment() {
-            const params = new URLSearchParams(window.location.search);
-            const orderId = params.get('order_id');
-            if (!orderId) return;
+    <?php else: ?>
+    <p class="message">Your order has been confirmed and will be processed shortly.</p>
+    <?php endif; ?>
 
-            try {
-                const formData = new FormData();
-                formData.append('order_id', orderId);
+    <div class="info-grid">
+        <div class="info-box">
+            <h3>📧 Confirmation Email</h3>
+            <p>We've sent an order confirmation to your registered email address.</p>
+        </div>
+        <div class="info-box">
+            <h3>📦 Delivery</h3>
+            <p>Your order will be delivered within 3–5 business days.
+               You'll receive a tracking number via SMS once dispatched.</p>
+        </div>
+    </div>
 
-                const response = await fetch('/dheergayu/public/api/finalize-payment-local.php', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-                if (!data.success) {
-                    console.warn('Local finalize skipped:', data.error || 'unknown error');
-                }
-            } catch (error) {
-                console.warn('Local finalize failed:', error);
-            }
-        })();
-    </script>
+    <div style="margin-top:30px;">
+        <a href="/dheergayu/app/Views/Patient/home.php"     class="btn">Back to Home</a>
+        <a href="/dheergayu/app/Views/Patient/products.php" class="btn btn-sec">Continue Shopping</a>
+    </div>
+</div>
+
+<script>
+    // Ensure cart badge is cleared (belt-and-suspenders)
+    fetch('/dheergayu/public/api/cart-api.php', {
+        method: 'POST',
+        body: new URLSearchParams({ action: 'clear' })
+    }).catch(() => {});
+</script>
 </body>
 </html>
