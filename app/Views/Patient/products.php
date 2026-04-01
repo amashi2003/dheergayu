@@ -5,6 +5,40 @@ $productsError = '';
 
 $db = new mysqli('localhost', 'root', '', 'dheergayu_db');
 
+function resolveProductImage(string $dbImagePath, string $productName): string
+{
+    $defaultImage = '/dheergayu/public/assets/images/dheergayu.png';
+    $baseUrl = '/dheergayu/public/assets/images/Admin/';
+    $baseDir = __DIR__ . '/../../../public/assets/images/Admin/';
+
+    $raw = trim($dbImagePath);
+    $fileName = ltrim(str_replace('images/', '', $raw), '/');
+
+    $nameMap = [
+        'samahan herbal drink' => 'Samhan.jpg',
+        'kothalahimbutu capsules' => 'Kothalahibutu.png',
+        'siddhalepa herbal balm' => 'siddhalepa.png',
+    ];
+    $nameKey = strtolower(trim($productName));
+
+    $candidates = [];
+    if ($fileName !== '') {
+        $candidates[] = $fileName;
+    }
+    if (isset($nameMap[$nameKey])) {
+        $candidates[] = $nameMap[$nameKey];
+    }
+
+    foreach ($candidates as $candidate) {
+        $fullPath = $baseDir . $candidate;
+        if (is_file($fullPath)) {
+            return $baseUrl . rawurlencode($candidate);
+        }
+    }
+
+    return $defaultImage;
+}
+
 if ($db->connect_error) {
     $productsError = 'Failed to load products. Please try again later.';
 } else {
@@ -12,17 +46,11 @@ if ($db->connect_error) {
     $patientQuery = "SELECT product_id, name, price, description, image FROM patient_products ORDER BY name ASC";
     if ($result = $db->query($patientQuery)) {
         while ($row = $result->fetch_assoc()) {
-            $imagePath = trim((string)($row['image'] ?? ''));
-            if ($imagePath !== '') {
-                $imagePath = '/dheergayu/public/assets/images/Admin/' . ltrim(str_replace('images/', '', $imagePath), '/');
-            } else {
-                $imagePath = '/dheergayu/public/assets/images/dheergayu.png';
-            }
-
             $productName = $row['name'] ?? 'Unnamed Product';
             // Remove (Patient) and (Sachets) suffixes
             $productName = str_replace(' (Patient)', '', $productName);
             $productName = str_replace(' (Sachets)', '', $productName);
+            $imagePath = resolveProductImage((string)($row['image'] ?? ''), $productName);
             
             $patientProducts[] = [
                 'id' => (int)$row['product_id'],
@@ -40,12 +68,7 @@ if ($db->connect_error) {
     $adminQuery = "SELECT product_id, name, price, description, image FROM products WHERE COALESCE(product_type, 'admin') = 'admin' ORDER BY name ASC";
     if ($result = $db->query($adminQuery)) {
         while ($row = $result->fetch_assoc()) {
-            $imagePath = trim((string)($row['image'] ?? ''));
-            if ($imagePath !== '') {
-                $imagePath = '/dheergayu/public/assets/images/Admin/' . ltrim(str_replace('images/', '', $imagePath), '/');
-            } else {
-                $imagePath = '/dheergayu/public/assets/images/dheergayu.png';
-            }
+            $imagePath = resolveProductImage((string)($row['image'] ?? ''), (string)($row['name'] ?? ''));
 
             $adminProducts[] = [
                 'id' => (int)$row['product_id'],
@@ -118,13 +141,13 @@ if ($db->connect_error) {
                 <?php foreach ($patientProducts as $product): ?>
                     <div class="product-card" data-product-id="<?= $product['id'] ?>" data-product-type="patient">
                         <div class="product-image">
-                            <img src="<?= htmlspecialchars($product['image']) ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="product-img">
+                            <img src="<?= htmlspecialchars($product['image']) ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="product-img" onerror="this.src='/dheergayu/public/assets/images/dheergayu.png'">
                         </div>
                         <div class="product-info">
                             <h3 class="product-name"><?= htmlspecialchars($product['name']) ?></h3>
                             <div class="product-price">Rs. <?= htmlspecialchars($product['price']) ?></div>
                             <p class="product-use"><?= htmlspecialchars($product['description']) ?></p>
-                            <button class="add-to-cart-btn" onclick="addToCart(<?= $product['id'] ?>, '<?= htmlspecialchars(addslashes($product['name'])) ?>', <?= str_replace(',', '', $product['price']) ?>, 'patient')">
+                            <button class="add-to-cart-btn" onclick="addToCart(this, <?= $product['id'] ?>, <?= htmlspecialchars(json_encode($product['name']), ENT_QUOTES, 'UTF-8') ?>, <?= str_replace(',', '', $product['price']) ?>, 'patient', <?= htmlspecialchars(json_encode($product['image']), ENT_QUOTES, 'UTF-8') ?>)">
                                 Add to Cart
                             </button>
                         </div>
@@ -135,13 +158,15 @@ if ($db->connect_error) {
                 <?php foreach ($adminProducts as $product): ?>
                     <div class="product-card" data-product-id="<?= $product['id'] ?>" data-product-type="admin">
                         <div class="product-image">
-                            <img src="<?= htmlspecialchars($product['image']) ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="product-img">
+                            <img src="<?= htmlspecialchars($product['image']) ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="product-img" onerror="this.src='/dheergayu/public/assets/images/dheergayu.png'">
                         </div>
                         <div class="product-info">
                             <h3 class="product-name"><?= htmlspecialchars($product['name']) ?></h3>
                             <div class="product-price">Rs. <?= htmlspecialchars($product['price']) ?></div>
                             <p class="product-use"><?= htmlspecialchars($product['description']) ?></p>
-                            <div class="product-availability">Available in Store</div>
+                            <button class="add-to-cart-btn" onclick="addToCart(this, <?= $product['id'] ?>, <?= htmlspecialchars(json_encode($product['name']), ENT_QUOTES, 'UTF-8') ?>, <?= str_replace(',', '', $product['price']) ?>, 'admin', <?= htmlspecialchars(json_encode($product['image']), ENT_QUOTES, 'UTF-8') ?>)">
+                                Add to Cart
+                            </button>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -192,51 +217,60 @@ if ($db->connect_error) {
     </footer>
 
     <script>
-        // Cart functionality
-        let cart = JSON.parse(localStorage.getItem('dheergayu_cart') || '[]');
-        
-        function addToCart(productId, productName, price, productType) {
-            // Check if product already in cart
-            const existingItem = cart.find(item => item.id === productId && item.type === productType);
-            
-            if (existingItem) {
-                existingItem.quantity += 1;
-            } else {
-                cart.push({
-                    id: productId,
-                    name: productName,
-                    price: price,
-                    type: productType,
-                    quantity: 1
-                });
-            }
-            
-            // Save to localStorage
-            localStorage.setItem('dheergayu_cart', JSON.stringify(cart));
-            
-            // Show feedback
-            const btn = event.target;
+        async function addToCart(button, productId, productName, price, productType, imagePath) {
+            const btn = button;
             const originalText = btn.textContent;
-            btn.textContent = 'Added!';
-            btn.style.backgroundColor = '#4CAF50';
             btn.disabled = true;
-            
-            setTimeout(() => {
-                btn.textContent = originalText;
-                btn.style.backgroundColor = '';
-                btn.disabled = false;
-            }, 1500);
-            
-            // Update cart count if exists
-            updateCartCount();
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'add');
+                formData.append('product_id', String(productId));
+                formData.append('product_type', productType);
+                formData.append('product_name', productName);
+                formData.append('price', String(price));
+                formData.append('quantity', '1');
+                formData.append('image', imagePath || '/dheergayu/public/assets/images/dheergayu.png');
+
+                const response = await fetch('/dheergayu/public/api/cart-api.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to add item');
+                }
+
+                btn.textContent = 'Added!';
+                btn.style.backgroundColor = '#4CAF50';
+                await updateCartCount();
+            } catch (error) {
+                console.error(error);
+                btn.textContent = 'Try Again';
+                btn.style.backgroundColor = '#dc3545';
+                alert('Unable to add this item to cart right now. Please try again.');
+            } finally {
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.backgroundColor = '';
+                    btn.disabled = false;
+                }, 1200);
+            }
         }
         
-        function updateCartCount() {
-            const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+        async function updateCartCount() {
             const cartBadge = document.querySelector('.cart-badge');
-            if (cartBadge) {
+            if (!cartBadge) return;
+
+            try {
+                const response = await fetch('/dheergayu/public/api/cart-api.php?action=get');
+                const data = await response.json();
+                const totalItems = (data.items || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
                 cartBadge.textContent = totalItems;
                 cartBadge.style.display = totalItems > 0 ? 'block' : 'none';
+            } catch (error) {
+                console.error('Failed to refresh cart badge', error);
             }
         }
         
