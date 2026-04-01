@@ -5,6 +5,40 @@ $productsError = '';
 
 $db = new mysqli('localhost', 'root', '', 'dheergayu_db');
 
+function resolveProductImage(string $dbImagePath, string $productName): string
+{
+    $defaultImage = '/dheergayu/public/assets/images/dheergayu.png';
+    $baseUrl = '/dheergayu/public/assets/images/Admin/';
+    $baseDir = __DIR__ . '/../../../public/assets/images/Admin/';
+
+    $raw = trim($dbImagePath);
+    $fileName = ltrim(str_replace('images/', '', $raw), '/');
+
+    $nameMap = [
+        'samahan herbal drink' => 'Samhan.jpg',
+        'kothalahimbutu capsules' => 'Kothalahibutu.png',
+        'siddhalepa herbal balm' => 'siddhalepa.png',
+    ];
+    $nameKey = strtolower(trim($productName));
+
+    $candidates = [];
+    if ($fileName !== '') {
+        $candidates[] = $fileName;
+    }
+    if (isset($nameMap[$nameKey])) {
+        $candidates[] = $nameMap[$nameKey];
+    }
+
+    foreach ($candidates as $candidate) {
+        $fullPath = $baseDir . $candidate;
+        if (is_file($fullPath)) {
+            return $baseUrl . rawurlencode($candidate);
+        }
+    }
+
+    return $defaultImage;
+}
+
 if ($db->connect_error) {
     $productsError = 'Failed to load products. Please try again later.';
 } else {
@@ -12,17 +46,11 @@ if ($db->connect_error) {
     $patientQuery = "SELECT product_id, name, price, description, image FROM patient_products ORDER BY name ASC";
     if ($result = $db->query($patientQuery)) {
         while ($row = $result->fetch_assoc()) {
-            $imagePath = trim((string)($row['image'] ?? ''));
-            if ($imagePath !== '') {
-                $imagePath = '/dheergayu/public/assets/images/Admin/' . ltrim(str_replace('images/', '', $imagePath), '/');
-            } else {
-                $imagePath = '/dheergayu/public/assets/images/dheergayu.png';
-            }
-
             $productName = $row['name'] ?? 'Unnamed Product';
             // Remove (Patient) and (Sachets) suffixes
             $productName = str_replace(' (Patient)', '', $productName);
             $productName = str_replace(' (Sachets)', '', $productName);
+            $imagePath = resolveProductImage((string)($row['image'] ?? ''), $productName);
             
             $patientProducts[] = [
                 'id' => (int)$row['product_id'],
@@ -40,12 +68,7 @@ if ($db->connect_error) {
     $adminQuery = "SELECT product_id, name, price, description, image FROM products WHERE COALESCE(product_type, 'admin') = 'admin' ORDER BY name ASC";
     if ($result = $db->query($adminQuery)) {
         while ($row = $result->fetch_assoc()) {
-            $imagePath = trim((string)($row['image'] ?? ''));
-            if ($imagePath !== '') {
-                $imagePath = '/dheergayu/public/assets/images/Admin/' . ltrim(str_replace('images/', '', $imagePath), '/');
-            } else {
-                $imagePath = '/dheergayu/public/assets/images/dheergayu.png';
-            }
+            $imagePath = resolveProductImage((string)($row['image'] ?? ''), (string)($row['name'] ?? ''));
 
             $adminProducts[] = [
                 'id' => (int)$row['product_id'],
@@ -72,92 +95,6 @@ if ($db->connect_error) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Our Products - Dheergayu Pharmacy</title>
     <link rel="stylesheet" href="/dheergayu/public/assets/css/Patient/products.css?v=<?php echo time(); ?>">
-    <style>
-        /* Floating Cart Button */
-        .floating-cart {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            background: linear-gradient(135deg, #8B7355, #A0916B);
-            color: white;
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 4px 20px rgba(139, 115, 85, 0.4);
-            z-index: 1000;
-            transition: all 0.3s ease;
-            font-size: 24px;
-        }
-
-        .floating-cart:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 6px 30px rgba(139, 115, 85, 0.6);
-        }
-
-        .floating-cart .cart-badge {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            background: #dc3545;
-            color: white;
-            font-size: 12px;
-            font-weight: bold;
-            min-width: 22px;
-            height: 22px;
-            border-radius: 11px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0 6px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        }
-
-        /* Cart notification animation */
-        @keyframes cartBounce {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.2); }
-        }
-
-        .floating-cart.bounce {
-            animation: cartBounce 0.5s ease;
-        }
-
-        /* Success message */
-        .cart-notification {
-            position: fixed;
-            top: 100px;
-            right: 30px;
-            background: #5CB85C;
-            color: white;
-            padding: 15px 25px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            z-index: 1001;
-            opacity: 0;
-            transform: translateX(400px);
-            transition: all 0.4s ease;
-        }
-
-        .cart-notification.show {
-            opacity: 1;
-            transform: translateX(0);
-        }
-
-        .cart-notification .close-notif {
-            margin-left: 15px;
-            cursor: pointer;
-            font-weight: bold;
-            opacity: 0.8;
-        }
-
-        .cart-notification .close-notif:hover {
-            opacity: 1;
-        }
-    </style>
 </head>
 <body>
     <header class="main-header">
@@ -204,13 +141,13 @@ if ($db->connect_error) {
                 <?php foreach ($patientProducts as $product): ?>
                     <div class="product-card" data-product-id="<?= $product['id'] ?>" data-product-type="patient">
                         <div class="product-image">
-                            <img src="<?= htmlspecialchars($product['image']) ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="product-img">
+                            <img src="<?= htmlspecialchars($product['image']) ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="product-img" onerror="this.src='/dheergayu/public/assets/images/dheergayu.png'">
                         </div>
                         <div class="product-info">
                             <h3 class="product-name"><?= htmlspecialchars($product['name']) ?></h3>
                             <div class="product-price">Rs. <?= htmlspecialchars($product['price']) ?></div>
                             <p class="product-use"><?= htmlspecialchars($product['description']) ?></p>
-                            <button class="add-to-cart-btn" onclick="addToCart(<?= $product['id'] ?>, '<?= htmlspecialchars(addslashes($product['name'])) ?>', <?= str_replace(',', '', $product['price']) ?>, 'patient', '<?= htmlspecialchars($product['image']) ?>')">
+                            <button class="add-to-cart-btn" onclick="addToCart(this, <?= $product['id'] ?>, <?= htmlspecialchars(json_encode($product['name']), ENT_QUOTES, 'UTF-8') ?>, <?= str_replace(',', '', $product['price']) ?>, 'patient', <?= htmlspecialchars(json_encode($product['image']), ENT_QUOTES, 'UTF-8') ?>)">
                                 Add to Cart
                             </button>
                         </div>
@@ -221,13 +158,13 @@ if ($db->connect_error) {
                 <?php foreach ($adminProducts as $product): ?>
                     <div class="product-card" data-product-id="<?= $product['id'] ?>" data-product-type="admin">
                         <div class="product-image">
-                            <img src="<?= htmlspecialchars($product['image']) ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="product-img">
+                            <img src="<?= htmlspecialchars($product['image']) ?>" alt="<?= htmlspecialchars($product['name']) ?>" class="product-img" onerror="this.src='/dheergayu/public/assets/images/dheergayu.png'">
                         </div>
                         <div class="product-info">
                             <h3 class="product-name"><?= htmlspecialchars($product['name']) ?></h3>
                             <div class="product-price">Rs. <?= htmlspecialchars($product['price']) ?></div>
                             <p class="product-use"><?= htmlspecialchars($product['description']) ?></p>
-                            <button class="add-to-cart-btn" onclick="addToCart(<?= $product['id'] ?>, '<?= htmlspecialchars(addslashes($product['name'])) ?>', <?= str_replace(',', '', $product['price']) ?>, 'admin', '<?= htmlspecialchars($product['image']) ?>')">
+                            <button class="add-to-cart-btn" onclick="addToCart(this, <?= $product['id'] ?>, <?= htmlspecialchars(json_encode($product['name']), ENT_QUOTES, 'UTF-8') ?>, <?= str_replace(',', '', $product['price']) ?>, 'admin', <?= htmlspecialchars(json_encode($product['image']), ENT_QUOTES, 'UTF-8') ?>)">
                                 Add to Cart
                             </button>
                         </div>
@@ -241,18 +178,6 @@ if ($db->connect_error) {
             <h3>Visit Our Pharmacy</h3>
             <p>All our products are available for purchase at our pharmacy location. Our experienced staff is ready to assist you with product selection and provide guidance on usage. We ensure all products are authentic and of the highest quality.</p>
         </div>
-    </div>
-
-    <!-- Floating Cart Button -->
-    <div class="floating-cart" onclick="goToCart()">
-        🛒
-        <span class="cart-badge" id="cartBadge" style="display: none;">0</span>
-    </div>
-
-    <!-- Cart Notification -->
-    <div class="cart-notification" id="cartNotification">
-        <span id="notificationText">Added to cart!</span>
-        <span class="close-notif" onclick="closeNotification()">✕</span>
     </div>
 
     <footer class="main-footer">
@@ -292,105 +217,71 @@ if ($db->connect_error) {
     </footer>
 
     <script>
-// Updated JavaScript for products.php - Database-backed cart with user authentication
-
-// Initialize - Load cart from database
-async function initializeCart() {
-    try {
-        const response = await fetch('/dheergayu/public/api/cart-api.php?action=get');
-        const data = await response.json();
-        
-        if (data.success) {
-            updateCartBadge(data.count);
-        }
-    } catch (error) {
-        console.error('Error loading cart:', error);
-    }
-}
-
-async function addToCart(productId, productName, price, productType, image) {
-    try {
-        const formData = new FormData();
-        formData.append('action', 'add');
-        formData.append('product_id', productId);
-        formData.append('product_name', productName);
-        formData.append('price', price);
-        formData.append('product_type', productType);
-        formData.append('image', image);
-        formData.append('quantity', 1);
-        
-        const response = await fetch('/dheergayu/public/api/cart-api.php', {
-            method: 'POST',
-            body: formData
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            // Update cart badge
-            updateCartBadge(data.cart_count);
-            
-            // Show feedback on button
-            const btn = event.target;
+        async function addToCart(button, productId, productName, price, productType, imagePath) {
+            const btn = button;
             const originalText = btn.textContent;
-            btn.textContent = 'Added!';
-            btn.style.backgroundColor = '#4CAF50';
             btn.disabled = true;
-            
-            setTimeout(() => {
-                btn.textContent = originalText;
-                btn.style.backgroundColor = '';
-                btn.disabled = false;
-            }, 1500);
-            
-            // Show notification
-            showNotification(productName);
-            
-            // Bounce animation for cart icon
-            const cartIcon = document.querySelector('.floating-cart');
-            if (cartIcon) {
-                cartIcon.classList.add('bounce');
-                setTimeout(() => cartIcon.classList.remove('bounce'), 500);
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'add');
+                formData.append('product_id', String(productId));
+                formData.append('product_type', productType);
+                formData.append('product_name', productName);
+                formData.append('price', String(price));
+                formData.append('quantity', '1');
+                formData.append('image', imagePath || '/dheergayu/public/assets/images/dheergayu.png');
+
+                const response = await fetch('/dheergayu/public/api/cart-api.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to add item');
+                }
+
+                btn.textContent = 'Added!';
+                btn.style.backgroundColor = '#4CAF50';
+                await updateCartCount();
+            } catch (error) {
+                console.error(error);
+                btn.textContent = 'Try Again';
+                btn.style.backgroundColor = '#dc3545';
+                alert('Unable to add this item to cart right now. Please try again.');
+            } finally {
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.backgroundColor = '';
+                    btn.disabled = false;
+                }, 1200);
             }
-        } else {
-            alert('Error adding to cart: ' + (data.error || 'Unknown error'));
         }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Failed to add item to cart. Please try again.');
-    }
-}
+        
+        async function updateCartCount() {
+            const cartBadge = document.querySelector('.cart-badge');
+            if (!cartBadge) return;
 
-function updateCartBadge(count) {
-    const cartBadge = document.getElementById('cartBadge');
-    if (cartBadge) {
-        cartBadge.textContent = count;
-        cartBadge.style.display = count > 0 ? 'flex' : 'none';
-    }
-}
-
-function showNotification(productName) {
-    const notification = document.getElementById('cartNotification');
-    const notifText = document.getElementById('notificationText');
-    notifText.textContent = `"${productName}" added to cart!`;
-    
-    notification.classList.add('show');
-    
-    setTimeout(() => {
-        notification.classList.remove('show');
-    }, 3000);
-}
-
-function closeNotification() {
-    document.getElementById('cartNotification').classList.remove('show');
-}
-
-function goToCart() {
-    window.location.href = 'cart.php';
-}
-
-// Initialize cart on page load
-document.addEventListener('DOMContentLoaded', initializeCart);
+            try {
+                const response = await fetch('/dheergayu/public/api/cart-api.php?action=get');
+                const data = await response.json();
+                const totalItems = (data.items || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
+                cartBadge.textContent = totalItems;
+                cartBadge.style.display = totalItems > 0 ? 'block' : 'none';
+            } catch (error) {
+                console.error('Failed to refresh cart badge', error);
+            }
+        }
+        
+        // Initialize cart count on page load
+        updateCartCount();
+        
+        // Smooth scroll to top
+        document.querySelector('.scroll-to-top')?.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
     </script>
 </body>
 </html>
