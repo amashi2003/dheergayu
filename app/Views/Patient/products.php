@@ -1,7 +1,9 @@
 <?php
+session_start();
 $patientProducts = [];
 $adminProducts   = [];
 $productsError   = '';
+$loggedIn       = !empty($_SESSION['user_id']);
 
 $db = new mysqli('localhost', 'root', '', 'dheergayu_db');
 
@@ -156,17 +158,23 @@ if ($db->connect_error) {
                             <h3 class="product-name"><?= htmlspecialchars($product['name']) ?></h3>
                             <div class="product-price">Rs. <?= htmlspecialchars($product['price']) ?></div>
                             <p class="product-use"><?= htmlspecialchars($product['description']) ?></p>
-                            <button class="add-to-cart-btn"
-                                    onclick="addToCart(
-                                        <?= $product['id'] ?>,
-                                        '<?= htmlspecialchars(addslashes($product['name'])) ?>',
-                                        <?= str_replace(',', '', $product['price']) ?>,
-                                        '<?= $product['type'] ?>',
-                                        '<?= htmlspecialchars(addslashes($product['image'])) ?>',
-                                        event
-                                    )">
-                                Add to Cart
-                            </button>
+                            <?php if ($loggedIn): ?>
+                                <button class="add-to-cart-btn"
+                                        onclick="addToCart(
+                                            <?= $product['id'] ?>,
+                                            '<?= htmlspecialchars(addslashes($product['name'])) ?>',
+                                            <?= str_replace(',', '', $product['price']) ?>,
+                                            '<?= $product['type'] ?>',
+                                            '<?= htmlspecialchars(addslashes($product['image'])) ?>',
+                                            event
+                                        )">
+                                    Add to Cart
+                                </button>
+                            <?php else: ?>
+                                <button class="add-to-cart-btn login-required" type="button" onclick="window.location.href='login.php'">
+                                    Login to Add
+                                </button>
+                            <?php endif; ?>
                         </div>
                     </div>
                 <?php endforeach; ?>
