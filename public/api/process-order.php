@@ -116,10 +116,9 @@ function doProcessOrder(mysqli $conn, bool $markPaid): void
 
     // ── Calculate total ───────────────────────────────────────────────────────
     if ($amount <= 0) {
-        $subtotal = (float)array_sum(array_map(
+        $amount = (float)array_sum(array_map(
             fn($i) => (float)$i['price'] * (int)$i['quantity'], $items
         ));
-        $amount = $subtotal + ($subtotal > 5000 ? 0 : 250);
     }
 
     $itemsDesc = implode(', ', array_map(
