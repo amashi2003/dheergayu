@@ -10,7 +10,7 @@ $db = new mysqli('localhost', 'root', '', 'dheergayu_db');
 if ($db->connect_error) {
     $productsError = 'Failed to load products. Please try again later.';
 } else {
-    $patientQuery = "SELECT product_id, name, price, description, image FROM patient_products ORDER BY name ASC";
+    $patientQuery = "SELECT product_id, name, price, description, image FROM products WHERE product_type = 'patient' ORDER BY name ASC";
     if ($result = $db->query($patientQuery)) {
         while ($row = $result->fetch_assoc()) {
             $imagePath = trim((string)($row['image'] ?? ''));

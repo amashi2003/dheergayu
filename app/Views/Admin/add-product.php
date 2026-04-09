@@ -8,7 +8,7 @@ $productDescription = '';
 $currentImage = '';
 
 // Determine which table to use
-$table_name = ($productType === 'patient') ? 'patient_products' : 'products';
+$table_name = 'products';
 
 if ($productId > 0) {
     // Fetch product data from database

@@ -10,28 +10,32 @@ try {
         throw new Exception("Database connection failed: " . $db->connect_error);
     }
     
-    // Get products with their total quantities from batches
-    $sql = "SELECT p.product_id, p.name, 
-                   COALESCE(SUM(b.quantity), 0) AS total_quantity,
-                   COUNT(b.product_id) AS batches_count
+    $today = date('Y-m-d');
+
+    // Get prescribable products (exclude treatment oils) with available and expired quantities
+    $sql = "SELECT p.product_id, p.name, p.product_type AS product_source,
+                   COALESCE(SUM(CASE WHEN b.exp >= '$today' OR b.exp IS NULL THEN b.quantity ELSE 0 END), 0) AS available_quantity,
+                   COALESCE(SUM(CASE WHEN b.exp < '$today' THEN b.quantity ELSE 0 END), 0) AS expired_quantity
             FROM products p
             LEFT JOIN batches b ON b.product_id = p.product_id
-            GROUP BY p.product_id, p.name
+            WHERE p.product_type != 'treatment'
+            GROUP BY p.product_id, p.name, p.product_type
             ORDER BY p.name";
-    
+
     $result = $db->query($sql);
-    
+
     if (!$result) {
         throw new Exception("Query failed: " . $db->error);
     }
-    
+
     $formattedProducts = [];
     while ($row = $result->fetch_assoc()) {
         $formattedProducts[] = [
             'id' => (int)$row['product_id'],
             'name' => $row['name'],
-            'available_quantity' => (int)$row['total_quantity'],
-            'batches_count' => (int)$row['batches_count']
+            'product_source' => $row['product_source'],
+            'available_quantity' => (int)$row['available_quantity'],
+            'expired_quantity' => (int)$row['expired_quantity']
         ];
     }
     

@@ -32,6 +32,19 @@ while ($row = $plans_result->fetch_assoc()) {
 }
 $stmt->close();
 
+// Fetch oils used per treatment
+$treatmentOils = [];
+$oils_result = $conn->query("
+    SELECT tp.treatment_id, p.name AS oil_name, tp.quantity_per_session
+    FROM treatment_products tp
+    JOIN products p ON p.product_id = tp.product_id
+");
+if ($oils_result) {
+    while ($orow = $oils_result->fetch_assoc()) {
+        $treatmentOils[(int)$orow['treatment_id']][] = $orow;
+    }
+}
+
 $planByTreatmentId = [];
 foreach ($treatment_plans as $planRow) {
     $tid = (int)($planRow['treatment_id'] ?? 0);
@@ -462,6 +475,22 @@ $treatmentPlansTabCount = count($treatment_plans);
                                             <span class="detail-label">Total Cost</span>
                                             <span class="detail-value">Rs <?= number_format($plan['total_cost'], 2) ?></span>
                                         </div>
+                                        <?php
+                                            $planOils = $treatmentOils[(int)($plan['treatment_id'] ?? 0)] ?? [];
+                                        ?>
+                                        <?php if (!empty($planOils)): ?>
+                                        <div style="grid-column: 1 / -1; margin-top: 4px;">
+                                            <div style="background:#f0f7f4;border:1px solid #c3e6cb;border-radius:8px;padding:10px 14px;font-size:13px;color:#2d6a4f;">
+                                                🌿 <strong>Medicines included in your treatment:</strong>
+                                                <ul style="margin:6px 0 0 0;padding-left:18px;">
+                                                    <?php foreach ($planOils as $oil): ?>
+                                                        <li><?= htmlspecialchars($oil['oil_name']) ?> (<?= (int)$oil['quantity_per_session'] ?> bottle<?= $oil['quantity_per_session'] > 1 ? 's' : '' ?> per session)</li>
+                                                    <?php endforeach; ?>
+                                                </ul>
+                                                <p style="margin:6px 0 0 0;color:#555;font-size:12px;">* Cost of medicines is included in the total treatment price.</p>
+                                            </div>
+                                        </div>
+                                        <?php endif; ?>
                                         <div class="detail-item">
                                             <span class="detail-label">Payment Status</span>
                                             <span class="detail-value" style="color: <?= $plan['payment_status'] === 'Completed' ? '#28a745' : '#ff9800' ?>">
