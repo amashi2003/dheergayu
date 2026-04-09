@@ -24,7 +24,7 @@ try {
     $action = $_POST['action'] ?? '';
 
     // Determine which table to use
-    $table_name = ($product_type === 'patient') ? 'patient_products' : 'products';
+    $table_name = 'products';
 
     // Handle image upload
     $image_path = null;

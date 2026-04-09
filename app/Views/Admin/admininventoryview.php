@@ -16,84 +16,41 @@ function get_product_image($image_path, $name) {
     return '/dheergayu/public/assets/images/Admin/dheergayu.png';
 }
 
-// Get admin products from products table
-$adminProductsQuery = "SELECT product_id, name, price, description, image 
-                       FROM products 
-                       WHERE COALESCE(product_type, 'admin') = 'admin' 
-                       ORDER BY name";
-$adminProductsResult = $db->query($adminProductsQuery);
+$todayStr = date('Y-m-d');
 
-$adminProducts = [];
-$adminProductNameToId = [];
-if ($adminProductsResult && $adminProductsResult->num_rows > 0) {
-    while ($row = $adminProductsResult->fetch_assoc()) {
+// Get all products from unified table
+$allProductsQuery = "SELECT product_id, name, price, description, image, COALESCE(product_type,'admin') AS product_type
+                     FROM products ORDER BY name";
+$allProductsResult = $db->query($allProductsQuery);
+
+$allProducts = [];
+$allProductNameToId = [];
+
+if ($allProductsResult && $allProductsResult->num_rows > 0) {
+    while ($row = $allProductsResult->fetch_assoc()) {
         $productId = (int)$row['product_id'];
-        $adminProductNameToId[$row['name']] = $productId;
-        
-        // Get batch information for this product
-        $batches = $model->getBatchesByProductId($productId);
+        $productType = $row['product_type'];
+        $allProductNameToId[$row['name']] = $productId;
+
+        $batches = $model->getBatchesByProductId($productId, $productType);
         $totalQuantity = 0;
         $earliestExp = null;
         $batchesCount = count($batches);
-        
+
         foreach ($batches as $batch) {
-            $totalQuantity += (int)$batch['quantity'];
-            if ($batch['exp']) {
-                if (!$earliestExp || $batch['exp'] < $earliestExp) {
-                    $earliestExp = $batch['exp'];
-                }
+            if (empty($batch['exp']) || $batch['exp'] >= $todayStr) {
+                $totalQuantity += (int)$batch['quantity'];
+            }
+            if ($batch['exp'] && (!$earliestExp || $batch['exp'] < $earliestExp)) {
+                $earliestExp = $batch['exp'];
             }
         }
-        
-        $adminProducts[] = [
+
+        $allProducts[] = [
             'id' => $productId,
             'name' => $row['name'],
-            'price' => $row['price'],
-            'description' => $row['description'],
             'image' => get_product_image($row['image'], $row['name']),
-            'total_quantity' => $totalQuantity,
-            'earliest_exp' => $earliestExp,
-            'batches_count' => $batchesCount
-        ];
-    }
-}
-
-// Get patient products from patient_products table
-$patientProductsQuery = "SELECT product_id, name, price, description, image 
-                          FROM patient_products 
-                          ORDER BY name";
-$patientProductsResult = $db->query($patientProductsQuery);
-
-$patientProducts = [];
-$patientProductNameToId = [];
-if ($patientProductsResult && $patientProductsResult->num_rows > 0) {
-    while ($row = $patientProductsResult->fetch_assoc()) {
-        $productId = (int)$row['product_id'];
-        $patientProductNameToId[$row['name']] = $productId;
-        
-        // Get batch information for this product (batches table uses product_id from products table)
-        // For patient products, we might need to check if batches are linked differently
-        // For now, we'll check if there are any batches with matching product names or IDs
-        $batches = $model->getBatchesByProductId($productId);
-        $totalQuantity = 0;
-        $earliestExp = null;
-        $batchesCount = count($batches);
-        
-        foreach ($batches as $batch) {
-            $totalQuantity += (int)$batch['quantity'];
-            if ($batch['exp']) {
-                if (!$earliestExp || $batch['exp'] < $earliestExp) {
-                    $earliestExp = $batch['exp'];
-                }
-            }
-        }
-        
-        $patientProducts[] = [
-            'id' => $productId,
-            'name' => $row['name'],
-            'price' => $row['price'],
-            'description' => $row['description'],
-            'image' => get_product_image($row['image'], $row['name']),
+            'product_type' => $productType,
             'total_quantity' => $totalQuantity,
             'earliest_exp' => $earliestExp,
             'batches_count' => $batchesCount
@@ -108,7 +65,6 @@ $expiringSoonCount = 0;
 $today = new DateTime();
 $thirtyDaysFromNow = (new DateTime())->add(new DateInterval('P30D'));
 
-$allProducts = array_merge($adminProducts, $patientProducts);
 foreach ($allProducts as $item) {
     $qty = (int)$item['total_quantity'];
     if ($qty <= 5) { 
@@ -231,61 +187,8 @@ $db->close();
             </div>
     </div>
 
-    <!-- Admin Products Inventory Table -->
+    <!-- Products Inventory Table -->
     <div class="inventory-section">
-        <div class="section-header">
-            <h3>Admin Products Inventory</h3>
-            <p>Inventory management for admin products</p>
-        </div>
-
-    <table class="inventory-table">
-        <thead>
-            <tr>
-                <th>Image</th>
-                    <th>Product</th>
-                <th>Total Quantity</th>
-                <th>Earliest Expiry</th>
-                <th>Batches</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-            <tbody>
-                <?php if (empty($adminProducts)): ?>
-                    <tr>
-                        <td colspan="6" style="text-align: center; padding: 2rem; color: #666;">No admin products found.</td>
-                    </tr>
-                <?php else: ?>
-                    <?php foreach($adminProducts as $item): ?>
-                        <tr data-product="<?= htmlspecialchars($item['name']) ?>" data-type="admin">
-                            <td><img src="<?= htmlspecialchars($item['image']) ?>" alt="<?= htmlspecialchars($item['name']) ?>" class="prod-img"></td>
-                            <td><?= htmlspecialchars($item['name']) ?></td>
-                    <td class="quantity-cell">
-                                <span class="total-quantity"><?= $item['total_quantity'] ?></span>
-                                <?php if($item['total_quantity'] <= 5): ?>
-                            <span class="stock-warning critical">Critical</span>
-                                <?php elseif($item['total_quantity'] <= 15): ?>
-                            <span class="stock-warning low">Low</span>
-                        <?php endif; ?>
-                    </td>
-                            <td class="earliest-expiry"><?= $item['earliest_exp'] ? htmlspecialchars($item['earliest_exp']) : '-' ?></td>
-                            <td class="batches-count"><?= $item['batches_count'] ?> batch<?= $item['batches_count'] > 1 ? 'es' : '' ?></td>
-                            <td>
-                                <button class="btn-batches" onclick="viewBatches(<?= $item['id'] ?>, 'admin')">View Batches</button>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
-
-    <!-- Patient Products Inventory Table -->
-    <div class="inventory-section">
-        <div class="section-header">
-            <h3>Patient Products Inventory</h3>
-            <p>Inventory management for patient products</p>
-        </div>
-        
         <table class="inventory-table">
             <thead>
                 <tr>
@@ -298,13 +201,13 @@ $db->close();
                 </tr>
             </thead>
             <tbody>
-                <?php if (empty($patientProducts)): ?>
+                <?php if (empty($allProducts)): ?>
                     <tr>
-                        <td colspan="6" style="text-align: center; padding: 2rem; color: #666;">No patient products found.</td>
+                        <td colspan="6" style="text-align: center; padding: 2rem; color: #666;">No products found.</td>
                     </tr>
                 <?php else: ?>
-                    <?php foreach($patientProducts as $item): ?>
-                        <tr data-product="<?= htmlspecialchars($item['name']) ?>" data-type="patient">
+                    <?php foreach($allProducts as $item): ?>
+                        <tr data-product="<?= htmlspecialchars($item['name']) ?>" data-type="<?= $item['product_type'] ?>">
                             <td><img src="<?= htmlspecialchars($item['image']) ?>" alt="<?= htmlspecialchars($item['name']) ?>" class="prod-img"></td>
                             <td><?= htmlspecialchars($item['name']) ?></td>
                             <td class="quantity-cell">
@@ -315,16 +218,16 @@ $db->close();
                                     <span class="stock-warning low">Low</span>
                                 <?php endif; ?>
                             </td>
-                    <td class="earliest-expiry"><?= $item['earliest_exp'] ? htmlspecialchars($item['earliest_exp']) : '-' ?></td>
+                            <td class="earliest-expiry"><?= $item['earliest_exp'] ? htmlspecialchars($item['earliest_exp']) : '-' ?></td>
                             <td class="batches-count"><?= $item['batches_count'] ?> batch<?= $item['batches_count'] > 1 ? 'es' : '' ?></td>
-                    <td>
-                                <button class="btn-batches" onclick="viewBatches(<?= $item['id'] ?>, 'patient')">View Batches</button>
-                </td>
-            </tr>
-            <?php endforeach; ?>
+                            <td>
+                                <button class="btn-batches" onclick="viewBatches(<?= $item['id'] ?>, '<?= $item['product_type'] ?>')">View Batches</button>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
                 <?php endif; ?>
-        </tbody>
-    </table>
+            </tbody>
+        </table>
     </div>
 
 </main>
@@ -343,21 +246,14 @@ $db->close();
     </div>
 
 <script>
-    const adminProductNameToId = <?= json_encode($adminProductNameToId) ?>;
-    const patientProductNameToId = <?= json_encode($patientProductNameToId) ?>;
+    const allProductNameToId = <?= json_encode($allProductNameToId) ?>;
 
     async function viewBatches(productId, productType) {
-            const modal = document.getElementById('batchModal');
-            const modalTitle = document.getElementById('modalTitle');
-            const batchDetails = document.getElementById('batchDetails');
-        
-        // Get product name
-        let productName = '';
-        if (productType === 'admin') {
-            productName = Object.keys(adminProductNameToId).find(key => adminProductNameToId[key] === productId) || 'Product';
-        } else {
-            productName = Object.keys(patientProductNameToId).find(key => patientProductNameToId[key] === productId) || 'Product';
-        }
+        const modal = document.getElementById('batchModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const batchDetails = document.getElementById('batchDetails');
+
+        const productName = Object.keys(allProductNameToId).find(key => allProductNameToId[key] === productId) || 'Product';
             
             modalTitle.textContent = `Batch Details - ${productName}`;
         

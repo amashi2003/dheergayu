@@ -30,6 +30,7 @@ $router->get('/api/batches/by-product', [BatchController::class, 'batches']);
 $router->post('/api/batches/create', [BatchController::class, 'create']);
 $router->post('/api/batches/update', [BatchController::class, 'update']);
 $router->post('/api/batches/delete', [BatchController::class, 'delete']);
+$router->post('/api/batches/remove-expired', [BatchController::class, 'removeExpired']);
 
 // Treatments API
 $router->get('/api/treatments', [TreatmentController::class, 'index']);

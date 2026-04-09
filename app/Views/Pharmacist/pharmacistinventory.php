@@ -22,93 +22,71 @@ function get_product_image($image_path, $name, $type = 'admin') {
     return '/dheergayu/public/assets/images/Pharmacist/dheergayu.png';
 }
 
-// Get admin products from products table
-$adminProductsQuery = "SELECT product_id, name, price, description, image 
-                       FROM products 
-                       WHERE COALESCE(product_type, 'admin') = 'admin' 
-                       ORDER BY name";
-$adminProductsResult = $db->query($adminProductsQuery);
+$todayStr = date('Y-m-d');
 
-$adminProducts = [];
-$adminProductNameToId = [];
-$allProductRows = []; // For the add batch form
+// Get all products from unified products table
+$allProductsQuery = "SELECT product_id, name, price, description, image, COALESCE(product_type, 'admin') AS product_type
+                     FROM products ORDER BY name";
+$allProductsResult = $db->query($allProductsQuery);
 
-if ($adminProductsResult && $adminProductsResult->num_rows > 0) {
-    while ($row = $adminProductsResult->fetch_assoc()) {
+$allProducts = [];
+$regularProducts = [];
+$treatmentProducts = [];
+$allProductNameToId = [];
+$allProductRows = [];
+
+if ($allProductsResult && $allProductsResult->num_rows > 0) {
+    while ($row = $allProductsResult->fetch_assoc()) {
         $productId = (int)$row['product_id'];
-        $adminProductNameToId[$row['name']] = $productId;
+        $productType = $row['product_type'];
+        $allProductNameToId[$row['name']] = $productId;
         $allProductRows[] = ['id' => $productId, 'name' => $row['name']];
-        
-        // Get batch information for this product (admin products)
-        $batches = $model->getBatchesByProductId($productId, 'admin');
+
+        $batches = $model->getBatchesByProductId($productId, $productType);
         $totalQuantity = 0;
+        $expiredQuantity = 0;
         $earliestExp = null;
         $batchesCount = count($batches);
-        
+
         foreach ($batches as $batch) {
-            $totalQuantity += (int)$batch['quantity'];
+            if (empty($batch['exp']) || $batch['exp'] >= $todayStr) {
+                $totalQuantity += (int)$batch['quantity'];
+            } else {
+                $expiredQuantity += (int)$batch['quantity'];
+            }
             if ($batch['exp']) {
                 if (!$earliestExp || $batch['exp'] < $earliestExp) {
                     $earliestExp = $batch['exp'];
                 }
             }
         }
-        
-        $adminProducts[] = [
+
+        $entry = [
             'id' => $productId,
             'name' => $row['name'],
             'price' => $row['price'],
             'description' => $row['description'],
-            'image' => get_product_image($row['image'], $row['name'], 'admin'),
+            'image' => get_product_image($row['image'], $row['name']),
+            'product_type' => $productType,
             'total_quantity' => $totalQuantity,
+            'expired_quantity' => $expiredQuantity,
             'earliest_exp' => $earliestExp,
             'batches_count' => $batchesCount
         ];
+        $allProducts[] = $entry;
+        if ($productType === 'treatment') {
+            $treatmentProducts[] = $entry;
+        } else {
+            $regularProducts[] = $entry;
+        }
     }
 }
 
-// Get patient products from patient_products table
-$patientProductsQuery = "SELECT product_id, name, price, description, image 
-                          FROM patient_products 
-                          ORDER BY name";
-$patientProductsResult = $db->query($patientProductsQuery);
-
+// Keep these for JS compatibility
+$adminProducts = $regularProducts;
 $patientProducts = [];
+$adminProductNameToId = $allProductNameToId;
 $patientProductNameToId = [];
-
-if ($patientProductsResult && $patientProductsResult->num_rows > 0) {
-    while ($row = $patientProductsResult->fetch_assoc()) {
-        $productId = (int)$row['product_id'];
-        $patientProductNameToId[$row['name']] = $productId;
-        $allProductRows[] = ['id' => $productId, 'name' => $row['name']];
-        
-        // Get batch information for this product (patient products)
-        $batches = $model->getBatchesByProductId($productId, 'patient');
-        $totalQuantity = 0;
-        $earliestExp = null;
-        $batchesCount = count($batches);
-        
-        foreach ($batches as $batch) {
-            $totalQuantity += (int)$batch['quantity'];
-            if ($batch['exp']) {
-                if (!$earliestExp || $batch['exp'] < $earliestExp) {
-                    $earliestExp = $batch['exp'];
-                }
-            }
-        }
-        
-        $patientProducts[] = [
-            'id' => $productId,
-            'name' => $row['name'],
-            'price' => $row['price'],
-            'description' => $row['description'],
-            'image' => get_product_image($row['image'], $row['name'], 'patient'),
-            'total_quantity' => $totalQuantity,
-            'earliest_exp' => $earliestExp,
-            'batches_count' => $batchesCount
-        ];
-    }
-}
 
 // Get suppliers from database
 require_once __DIR__ . '/../../../config/config.php';
@@ -155,6 +133,46 @@ $db->close();
     <link rel="stylesheet" href="/dheergayu/public/assets/css/Pharmacist/pharmacistinventory.css">
     <link rel="stylesheet" href="/dheergayu/public/assets/css/Pharmacist/addbatch.css">
     <style>
+        .inv-tab-nav {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .inv-tab-btn {
+            padding: 0.6rem 1.4rem;
+            border: none;
+            border-radius: 8px 8px 0 0;
+            background: #f0f0f0;
+            color: #555;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            position: relative;
+            bottom: -2px;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .inv-tab-btn.active {
+            background: white;
+            color: #5b8a6e;
+            border-bottom: 2px solid white;
+            border-top: 2px solid #5b8a6e;
+        }
+        .inv-tab-btn:hover:not(.active) { background: #e5e5e5; }
+        .inv-tab-count {
+            background: #5b8a6e;
+            color: white;
+            font-size: 0.7rem;
+            padding: 1px 6px;
+            border-radius: 10px;
+            margin-left: 4px;
+        }
+        .quantity-cell { display: flex; flex-direction: column; gap: 3px; }
+        .expired-qty-hint {
+            font-size: 0.75rem;
+            color: #dc3545;
+        }
         .inventory-section {
             margin-bottom: 3rem;
         }
@@ -201,107 +219,78 @@ $db->close();
 </header>
 
 <main class="main-content">
-        <h2 class="section-title">Stock Management</h2>
+    <h2 class="section-title">Stock Management</h2>
 
-    <!-- Admin Products Inventory Table -->
-    <div class="inventory-section">
-        <div class="section-header">
-            <h3>Admin Products Inventory</h3>
-            <p>Inventory management for admin products</p>
-            </div>
-            
-        <table class="inventory-table">
-            <thead>
-                <tr>
-                    <th>Image</th>
-                    <th>Medicine</th>
-                    <th>Total Quantity</th>
-                    <th>Earliest Expiry</th>
-                    <th>Batches</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($adminProducts)): ?>
-                    <tr>
-                        <td colspan="6" style="text-align: center; padding: 2rem; color: #666;">No admin products found.</td>
-                    </tr>
-                <?php else: ?>
-                    <?php foreach($adminProducts as $item): ?>
-                        <tr data-product="<?= htmlspecialchars($item['name']) ?>" data-type="admin" data-product-id="<?= $item['id'] ?>">
-                            <td><img src="<?= htmlspecialchars($item['image']) ?>" alt="<?= htmlspecialchars($item['name']) ?>" class="prod-img"></td>
-                            <td><?= htmlspecialchars($item['name']) ?></td>
-                            <td class="quantity-cell">
-                                <span class="total-quantity"><?= $item['total_quantity'] ?></span>
-                                <?php if($item['total_quantity'] <= 5): ?>
-                                    <span class="stock-warning critical">Critical</span>
-                                <?php elseif($item['total_quantity'] <= 15): ?>
-                                    <span class="stock-warning low">Low</span>
-                                <?php endif; ?>
-                            </td>
-                            <td class="earliest-expiry"><?= $item['earliest_exp'] ? htmlspecialchars($item['earliest_exp']) : '-' ?></td>
-                            <td class="batches-count"><?= $item['batches_count'] ?> batch<?= $item['batches_count'] > 1 ? 'es' : '' ?></td>
-                            <td>
-                                <button class="btn-add-batch" data-product-name="<?= htmlspecialchars($item['name']) ?>" data-product-id="<?= $item['id'] ?>" data-product-type="admin">Add Batch</button>
-                                <button class="btn-batches" data-product-name="<?= htmlspecialchars($item['name']) ?>" data-product-id="<?= $item['id'] ?>" data-product-type="admin">View Batches</button>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-        </table>
-            </div>
-            
-    <!-- Patient Products Inventory Table -->
-    <div class="inventory-section">
-        <div class="section-header">
-            <h3>Patient Products Inventory</h3>
-            <p>Inventory management for patient products</p>
+    <!-- Tab Navigation -->
+    <div class="inv-tab-nav">
+        <button class="inv-tab-btn active" onclick="switchInvTab('medicines', this)">Medicines <span class="inv-tab-count"><?= count($regularProducts) ?></span></button>
+        <button class="inv-tab-btn" onclick="switchInvTab('treatment-oils', this)">Treatment Oils <span class="inv-tab-count"><?= count($treatmentProducts) ?></span></button>
+    </div>
+
+    <!-- Medicines Tab -->
+    <div id="inv-tab-medicines" class="inv-tab-section">
+        <div class="inventory-section">
+            <?= renderInventoryTable($regularProducts) ?>
         </div>
+    </div>
 
-    <table class="inventory-table">
-        <thead>
-            <tr>
-                <th>Image</th>
-                <th>Medicine</th>
-                    <th>Total Quantity</th>
-                    <th>Earliest Expiry</th>
-                    <th>Batches</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-            <tbody>
-                <?php if (empty($patientProducts)): ?>
-                    <tr>
-                        <td colspan="6" style="text-align: center; padding: 2rem; color: #666;">No patient products found.</td>
-                    </tr>
-                <?php else: ?>
-                    <?php foreach($patientProducts as $item): ?>
-                        <tr data-product="<?= htmlspecialchars($item['name']) ?>" data-type="patient" data-product-id="<?= $item['id'] ?>">
-                            <td><img src="<?= htmlspecialchars($item['image']) ?>" alt="<?= htmlspecialchars($item['name']) ?>" class="prod-img"></td>
-                            <td><?= htmlspecialchars($item['name']) ?></td>
-                    <td class="quantity-cell">
-                                <span class="total-quantity"><?= $item['total_quantity'] ?></span>
-                                <?php if($item['total_quantity'] <= 5): ?>
-                            <span class="stock-warning critical">Critical</span>
-                                <?php elseif($item['total_quantity'] <= 15): ?>
-                            <span class="stock-warning low">Low</span>
-                        <?php endif; ?>
-                    </td>
-                    <td class="earliest-expiry"><?= $item['earliest_exp'] ? htmlspecialchars($item['earliest_exp']) : '-' ?></td>
-                            <td class="batches-count"><?= $item['batches_count'] ?> batch<?= $item['batches_count'] > 1 ? 'es' : '' ?></td>
-                    <td>
-                                <button class="btn-add-batch" data-product-name="<?= htmlspecialchars($item['name']) ?>" data-product-id="<?= $item['id'] ?>" data-product-type="patient">Add Batch</button>
-                                <button class="btn-batches" data-product-name="<?= htmlspecialchars($item['name']) ?>" data-product-id="<?= $item['id'] ?>" data-product-type="patient">View Batches</button>
-                </td>
-            </tr>
-            <?php endforeach; ?>
-                <?php endif; ?>
-        </tbody>
-    </table>
+    <!-- Treatment Oils Tab -->
+    <div id="inv-tab-treatment-oils" class="inv-tab-section" style="display:none;">
+        <div class="inventory-section">
+            <?= renderInventoryTable($treatmentProducts) ?>
+        </div>
     </div>
 
 </main>
+
+<?php
+function renderInventoryTable(array $items): string {
+    $html = '<table class="inventory-table"><thead><tr>
+        <th>Image</th><th>Product</th><th>Total Qty (Bottles)</th><th>Earliest Expiry</th><th>Batches</th><th>Actions</th>
+    </tr></thead><tbody>';
+    if (empty($items)) {
+        $html .= '<tr><td colspan="6" style="text-align:center;padding:2rem;color:#666;">No products found.</td></tr>';
+    } else {
+        foreach ($items as $item) {
+            $badge = '';
+            if ($item['total_quantity'] == 0 && $item['expired_quantity'] > 0) {
+                $badge = '<span class="stock-warning critical">All Expired</span>';
+                $expiredHint = '';
+            } else {
+                $expiredHint = $item['expired_quantity'] > 0 ? '<span class="expired-qty-hint">(' . $item['expired_quantity'] . ' expired)</span>' : '';
+                if ($item['total_quantity'] <= 5) {
+                    $badge = '<span class="stock-warning critical">Critical</span>';
+                } elseif ($item['total_quantity'] <= 15) {
+                    $badge = '<span class="stock-warning low">Low</span>';
+                }
+            }
+            $exp = $item['earliest_exp'] ? htmlspecialchars($item['earliest_exp']) : '-';
+            $batchLabel = $item['batches_count'] . ' batch' . ($item['batches_count'] != 1 ? 'es' : '');
+            $name = htmlspecialchars($item['name']);
+            $img = htmlspecialchars($item['image']);
+            $id = $item['id'];
+            $type = $item['product_type'];
+            $html .= "
+            <tr data-product=\"{$name}\" data-type=\"{$type}\" data-product-id=\"{$id}\">
+                <td><img src=\"{$img}\" alt=\"{$name}\" class=\"prod-img\"></td>
+                <td>{$name}</td>
+                <td class=\"quantity-cell\">
+                    <span class=\"total-quantity\">{$item['total_quantity']}</span>
+                    {$expiredHint}{$badge}
+                </td>
+                <td class=\"earliest-expiry\">{$exp}</td>
+                <td class=\"batches-count\">{$batchLabel}</td>
+                <td>
+                    <button class=\"btn-add-batch\" data-product-name=\"{$name}\" data-product-id=\"{$id}\" data-product-type=\"{$type}\">Add Batch</button>
+                    <button class=\"btn-batches\" data-product-name=\"{$name}\" data-product-id=\"{$id}\" data-product-type=\"{$type}\">View Batches</button>
+                </td>
+            </tr>";
+        }
+    }
+    $html .= '</tbody></table>';
+    return $html;
+}
+?>
 
     <!-- Batch Details Modal -->
     <div id="batchModal" class="modal">
@@ -418,9 +407,16 @@ $db->close();
     </div>
 
 <script>
-    const adminProductNameToId = <?= json_encode($adminProductNameToId) ?>;
-    const patientProductNameToId = <?= json_encode($patientProductNameToId) ?>;
-    const allProductNameToId = { ...adminProductNameToId, ...patientProductNameToId };
+    const adminProductNameToId = <?= json_encode($allProductNameToId) ?>;
+    const patientProductNameToId = {};
+    const allProductNameToId = <?= json_encode($allProductNameToId) ?>;
+
+    function switchInvTab(tab, btn) {
+        document.querySelectorAll('.inv-tab-section').forEach(s => s.style.display = 'none');
+        document.querySelectorAll('.inv-tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('inv-tab-' + tab).style.display = '';
+        btn.classList.add('active');
+    }
 
     // Make functions globally accessible
     window.addBatch = function(productName, productId) {
@@ -535,17 +531,34 @@ $db->close();
         }
 
             if (rows.length > 0) {
+                const todayStr = new Date().toISOString().split('T')[0];
+                const availableQty = rows.filter(b => !b.exp || b.exp >= todayStr).reduce((sum, b) => sum + Number(b.quantity || 0), 0);
+                const expiredBatches = rows.filter(b => b.exp && b.exp < todayStr);
+                const row = document.querySelector(`tr[data-product-id="${productId}"]`);
+                const productSource = row && row.getAttribute('data-type') === 'patient' ? 'patient' : 'admin';
+
                 let html = `
                     <div class="batch-summary">
                         <div class="summary-card">
-                            <h4>Total Quantity</h4>
-                            <span class="total-qty">${rows.reduce((sum, b) => sum + Number(b.quantity || 0), 0)}</span>
+                            <h4>Available Qty</h4>
+                            <span class="total-qty">${availableQty}</span>
                         </div>
                         <div class="summary-card">
                             <h4>Total Batches</h4>
                             <span class="total-batches">${rows.length}</span>
                         </div>
+                        ${expiredBatches.length > 0 ? `
+                        <div class="summary-card">
+                            <h4>Expired Batches</h4>
+                            <span style="color:#dc3545;font-weight:700;">${expiredBatches.length}</span>
+                        </div>` : ''}
                     </div>
+                    ${expiredBatches.length > 0 ? `
+                    <div style="margin-bottom:1rem;">
+                        <button id="btn-remove-expired" style="background:#dc3545;color:#fff;border:none;padding:0.5rem 1.2rem;border-radius:4px;cursor:pointer;font-weight:600;">
+                            Remove All Expired (${expiredBatches.length})
+                        </button>
+                    </div>` : ''}
                     
                     <div class="batches-table-container">
                         <table class="batches-table">
@@ -612,7 +625,37 @@ $db->close();
                 `;
                 
                 batchDetails.innerHTML = html;
-                
+
+                // Remove Expired button
+                const removeExpiredBtn = document.getElementById('btn-remove-expired');
+                if (removeExpiredBtn) {
+                    removeExpiredBtn.addEventListener('click', async function() {
+                        if (!confirm(`Remove all ${expiredBatches.length} expired batch(es) for ${productName}?\n\nThey will be archived to the expired batches record.`)) return;
+                        this.disabled = true;
+                        this.textContent = 'Removing...';
+                        try {
+                            const form = new FormData();
+                            form.append('product_id', productId);
+                            form.append('product_source', productSource);
+                            const res = await fetch('/dheergayu/public/api/batches/remove-expired', { method: 'POST', body: form });
+                            const data = await res.json();
+                            if (data.success) {
+                                alert(`✅ Removed ${data.removed} expired batch(es). They have been archived.`);
+                                viewBatches(productName, productId);
+                                await updateMainTableQuantity(productName, productId);
+                            } else {
+                                alert('❌ Failed to remove expired batches');
+                                this.disabled = false;
+                                this.textContent = `Remove All Expired (${expiredBatches.length})`;
+                            }
+                        } catch (e) {
+                            alert('❌ Error: ' + e.message);
+                            this.disabled = false;
+                            this.textContent = `Remove All Expired (${expiredBatches.length})`;
+                        }
+                    });
+                }
+
                 // Attach event listeners to edit and delete buttons
                 batchDetails.querySelectorAll('.btn-edit-batch').forEach(btn => {
                     btn.addEventListener('click', function() {
@@ -787,10 +830,16 @@ $db->close();
                 const rows = data.data || [];
                 
                 let totalQty = 0;
+                let expiredQty = 0;
                 let earliestExp = null;
-                
+                const todayStr = new Date().toISOString().split('T')[0];
+
                 rows.forEach(b => {
-                    totalQty += Number(b.quantity || 0);
+                    if (!b.exp || b.exp >= todayStr) {
+                        totalQty += Number(b.quantity || 0);
+                    } else {
+                        expiredQty += Number(b.quantity || 0);
+                    }
                     if (b.exp) {
                         if (!earliestExp || new Date(b.exp) < new Date(earliestExp)) {
                             earliestExp = b.exp;
@@ -805,12 +854,21 @@ $db->close();
                     rowByName.querySelector('.earliest-expiry').textContent = earliestExp || '-';
                     rowByName.querySelector('.batches-count').textContent = `${rows.length} batch${rows.length > 1 ? 'es' : ''}`;
                     
-                    // Update stock warning
+                    // Update expired hint
                     const quantityCell = rowByName.querySelector('.quantity-cell');
+                    const existingHint = quantityCell.querySelector('.expired-qty-hint');
+                    if (existingHint) existingHint.remove();
+                    if (expiredQty > 0) {
+                        rowByName.querySelector('.total-quantity').insertAdjacentHTML('afterend', `<span class="expired-qty-hint">(${expiredQty} expired)</span>`);
+                    }
+
+                    // Update stock warning
                     const warningSpan = quantityCell.querySelector('.stock-warning');
                     if (warningSpan) warningSpan.remove();
-                    
-                    if (totalQty <= 5) {
+
+                    if (totalQty === 0 && expiredQty > 0) {
+                        quantityCell.innerHTML += '<span class="stock-warning critical">All Expired</span>';
+                    } else if (totalQty <= 5) {
                         quantityCell.innerHTML += '<span class="stock-warning critical">Critical</span>';
                     } else if (totalQty <= 15) {
                         quantityCell.innerHTML += '<span class="stock-warning low">Low</span>';

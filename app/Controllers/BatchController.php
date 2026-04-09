@@ -116,6 +116,14 @@ class BatchController extends Controller {
         $ok = $this->model->deleteBatch($productId, $batchNumber);
         $this->json(['success' => $ok]);
     }
+
+    public function removeExpired(): void {
+        $productId = (int)($_POST['product_id'] ?? 0);
+        if (!$productId) { $this->json(['error' => 'product_id required'], 400); return; }
+        $productSource = trim($_POST['product_source'] ?? '') ?: null;
+        $count = $this->model->removeExpiredBatchesByProduct($productId, $productSource);
+        $this->json(['success' => true, 'removed' => $count]);
+    }
 }
 
 

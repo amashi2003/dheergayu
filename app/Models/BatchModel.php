@@ -80,12 +80,13 @@ class BatchModel {
 
     /** Get inventory overview for patient products */
     public function getPatientProductsOverview(): array {
-        $sql = "SELECT p.product_id, p.name AS product, 
+        $sql = "SELECT p.product_id, p.name AS product,
                        COALESCE(SUM(b.quantity), 0) AS total_quantity,
                        MIN(b.exp) AS earliest_exp,
                        COUNT(b.product_id) AS batches_count
-                FROM patient_products p
+                FROM products p
                 LEFT JOIN batches b ON b.product_id = p.product_id AND b.product_source = 'patient'
+                WHERE p.product_type = 'patient'
                 GROUP BY p.product_id, p.name
                 ORDER BY p.name";
         $res = $this->db->query($sql);
@@ -259,6 +260,21 @@ class BatchModel {
         $stmtDelete->close();
 
         return $okDelete;
+    }
+
+    /** Remove all expired batches for a product (archives to expired_batches) */
+    public function removeExpiredBatchesByProduct(int $productId, ?string $productSource = null): int {
+        $batches = $this->getBatchesByProductId($productId, $productSource);
+        $today = date('Y-m-d');
+        $count = 0;
+        foreach ($batches as $batch) {
+            if (!empty($batch['exp']) && $batch['exp'] < $today) {
+                if ($this->deleteBatch($productId, $batch['batch_number'])) {
+                    $count++;
+                }
+            }
+        }
+        return $count;
     }
 
     /** Find product ID by name */

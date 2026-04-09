@@ -13,27 +13,31 @@ use App\Models\BatchModel;
 $supplierModel = new SupplierModel($conn);
 $suppliers = $supplierModel->getAllSuppliers();
 
-// Admin products (from products table) – supplied by Ayurvedic Traders
 $batchModel = new BatchModel();
-$adminProducts = $batchModel->getProducts();
 
-// Patient products (from patient_products table) – supplied by Herbal Suppliers Co.
+// Products by type
+$adminProducts = [];
+$adminRes = $conn->query("SELECT product_id AS id, name FROM products WHERE product_type = 'admin' ORDER BY name");
+if ($adminRes) while ($row = $adminRes->fetch_assoc()) $adminProducts[] = ['id' => $row['id'], 'name' => $row['name']];
+
 $patientProducts = [];
-$patientRes = $conn->query("SELECT product_id AS id, name FROM patient_products ORDER BY name");
-if ($patientRes && $patientRes->num_rows > 0) {
-    while ($row = $patientRes->fetch_assoc()) {
-        $patientProducts[] = ['id' => $row['id'], 'name' => $row['name']];
-    }
-}
+$patientRes = $conn->query("SELECT product_id AS id, name FROM products WHERE product_type = 'patient' ORDER BY name");
+if ($patientRes) while ($row = $patientRes->fetch_assoc()) $patientProducts[] = ['id' => $row['id'], 'name' => $row['name']];
 
-// Map supplier_id -> products: Herbal Suppliers Co. → patient (4), Ayurvedic Traders → admin (8)
+$treatmentProducts = [];
+$treatmentRes = $conn->query("SELECT product_id AS id, name FROM products WHERE product_type = 'treatment' ORDER BY name");
+if ($treatmentRes) while ($row = $treatmentRes->fetch_assoc()) $treatmentProducts[] = ['id' => $row['id'], 'name' => $row['name']];
+
+// Map supplier -> products by name keywords
 $supplierProductsMap = [];
 foreach ($suppliers as $s) {
-    $name = $s['supplier_name'] ?? '';
-    if (stripos($name, 'Herbal') !== false) {
-        $supplierProductsMap[$s['id']] = $patientProducts;
-    } elseif (stripos($name, 'Ayurvedic') !== false) {
-        $supplierProductsMap[$s['id']] = $adminProducts;
+    $name = strtolower($s['supplier_name'] ?? '');
+    if (str_contains($name, 'oil')) {
+        $supplierProductsMap[$s['id']] = $treatmentProducts;   // Herbal Oils & Supplies
+    } elseif (str_contains($name, 'medicine')) {
+        $supplierProductsMap[$s['id']] = $adminProducts;        // Ayurvedic Medicines Co
+    } elseif (str_contains($name, 'trader')) {
+        $supplierProductsMap[$s['id']] = $patientProducts;      // Ayurvedic Traders
     } else {
         $supplierProductsMap[$s['id']] = [];
     }
@@ -166,6 +170,43 @@ if (!empty($_SESSION['user_id'])) {
         </div>
     </div>
 
+    <!-- Add to Inventory modal -->
+    <div id="addInventoryModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeAddInventoryModal()">&times;</span>
+            <h3>Add Delivered Stock to Inventory</h3>
+            <form id="addInventoryForm">
+                <input type="hidden" id="inv_request_id">
+                <input type="hidden" id="inv_product_id">
+                <input type="hidden" id="inv_product_source">
+                <div class="form-group">
+                    <label>Product</label>
+                    <input type="text" id="inv_product_name" class="form-input" readonly style="background:#f8f9fa;">
+                </div>
+                <div class="form-group">
+                    <label>Quantity</label>
+                    <input type="number" id="inv_quantity" class="form-input" min="1" required>
+                </div>
+                <div class="form-group">
+                    <label for="inv_batch_number">Batch Number *</label>
+                    <input type="text" id="inv_batch_number" class="form-input" required placeholder="e.g. ASM001">
+                </div>
+                <div class="form-group">
+                    <label for="inv_mfd">Manufacturing Date *</label>
+                    <input type="date" id="inv_mfd" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label for="inv_exp">Expiry Date *</label>
+                    <input type="date" id="inv_exp" class="form-input" required>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-submit">Add to Inventory</button>
+                    <button type="button" class="btn-reset" onclick="closeAddInventoryModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Edit order line modal -->
     <div id="editRequestModal" class="modal">
         <div class="modal-content">
@@ -253,10 +294,13 @@ if (!empty($_SESSION['user_id'])) {
                         tbody.innerHTML = requests.map(function(request) {
                             var status = request.status || 'pending';
                             var isPending = (status === 'pending');
+                            var isDelivered = (status === 'delivered');
                             var safeProduct = escapeHtmlAttr(request.product_name || '');
                             var actions = isPending
                                 ? '<button type="button" class="btn-edit-order" data-id="' + request.id + '" data-product="' + safeProduct + '" data-qty="' + request.quantity + '">Edit</button> '
                                 + '<button type="button" class="btn-cancel-order" data-id="' + request.id + '" data-product="' + safeProduct + '">Cancel</button>'
+                                : isDelivered
+                                ? '<button type="button" class="btn-add-inventory" data-id="' + request.id + '" data-product="' + safeProduct + '" data-qty="' + request.quantity + '" data-supplier="' + request.supplier_id + '" style="background:#28a745;color:#fff;border:none;padding:0.3rem 0.8rem;border-radius:4px;cursor:pointer;font-weight:600;">Add to Inventory</button>'
                                 : '<span class="no-actions">—</span>';
                             return '<tr><td>' + escapeHtml(request.product_name) + '</td><td>' + request.quantity + '</td><td>' + escapeHtml(request.supplier_name || 'N/A') + '</td><td>' + request.request_date + '</td><td><span class="status-badge status-' + status + '">' + status + '</span></td><td class="actions-cell">' + actions + '</td></tr>';
                         }).join('');
@@ -265,6 +309,9 @@ if (!empty($_SESSION['user_id'])) {
                         });
                         tbody.querySelectorAll('.btn-cancel-order').forEach(function(btn) {
                             btn.addEventListener('click', cancelRequest);
+                        });
+                        tbody.querySelectorAll('.btn-add-inventory').forEach(function(btn) {
+                            btn.addEventListener('click', openAddInventoryModal);
                         });
                     } else {
                         tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">No requests found.</td></tr>';
@@ -409,6 +456,13 @@ if (!empty($_SESSION['user_id'])) {
             document.getElementById('messageModal').style.display = 'none';
         }
 
+        window.onclick = function(e) {
+            ['messageModal','editRequestModal','addInventoryModal'].forEach(function(id) {
+                var m = document.getElementById(id);
+                if (e.target === m) m.style.display = 'none';
+            });
+        };
+
         function escapeHtml(text) {
             var div = document.createElement('div');
             div.textContent = text;
@@ -418,6 +472,154 @@ if (!empty($_SESSION['user_id'])) {
             var s = String(text);
             return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
+
+        function getPrefixForProduct(name) {
+            var n = name.toLowerCase();
+            if (n.includes('asamodagam')) return 'ASM';
+            if (n.includes('paspanguwa') || n.includes('pasapanguwa') || n.includes('pasanguwa')) return 'PSP';
+            if (n.includes('siddhalepa') || n.includes('sidhalepa') || n.includes('siddalepa')) return 'SDP';
+            if (n.includes('dashamoolarishta')) return 'DMR';
+            if (n.includes('kothalahimbutu')) return 'KHC';
+            if (n.includes('neem') && n.includes('oil')) return 'NEO';
+            if (n.includes('nirgundi') && n.includes('oil')) return 'NRO';
+            if (n.includes('pinda') && n.includes('thailaya')) return 'PTL';
+            if (n.includes('bala') && n.includes('thailaya')) return 'BLT';
+            if (n.includes('ashwagandha')) return 'ASH';
+            if (n.includes('arawindasawaya')) return 'ARS';
+            if (n.includes('chandanasawaya')) return 'CDS';
+            if (n.includes('kanakasawaya')) return 'KNS';
+            if (n.includes('abayarishtaya')) return 'ABY';
+            if (n.includes('amurtharishtaya')) return 'AMR';
+            if (n.includes('arjunarishtaya')) return 'ARJ';
+            if (n.includes('samahan')) return 'SMH';
+            return (name.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 3) || 'BAT');
+        }
+
+        async function suggestBatchNumberForInventory(productId, productSource, productName) {
+            var prefix = getPrefixForProduct(productName);
+            var maxNum = 0;
+            try {
+                var res = await fetch('/dheergayu/public/api/batches/by-product?product_id=' + productId + '&product_source=' + productSource);
+                var data = await res.json();
+                var rows = data.data || [];
+                rows.forEach(function(b) {
+                    var m = String(b.batch_number || '').match(/^(\D+)(\d+)$/);
+                    if (m && m[1].toUpperCase() === prefix) {
+                        var num = parseInt(m[2], 10) || 0;
+                        if (num > maxNum) maxNum = num;
+                    }
+                });
+            } catch (e) { console.error(e); }
+            var next = String(maxNum + 1).padStart(3, '0');
+            document.getElementById('inv_batch_number').value = prefix + next;
+        }
+
+        function openAddInventoryModal(e) {
+            var btn = e.target;
+            var requestId = btn.getAttribute('data-id');
+            var productName = btn.getAttribute('data-product');
+            var qty = btn.getAttribute('data-qty');
+            var supplierId = btn.getAttribute('data-supplier');
+
+            // Lookup product_id and product_source from supplierProductsMap
+            var products = supplierProductsMap[supplierId] || [];
+            var product = products.find(function(p) { return p.name === productName; });
+
+            if (!product) {
+                showMessage('Error', 'Could not find product details. Please add batch manually from Inventory.', 'error');
+                return;
+            }
+
+            // Determine product_source: Herbal supplier → patient, Ayurvedic → admin
+            var isPatient = false;
+            for (var sid in supplierProductsMap) {
+                var prods = supplierProductsMap[sid];
+                if (String(sid) === String(supplierId) && prods.length > 0) {
+                    // Check if any of these match patient products by checking the map origin
+                    // We determine from the supplier name passed via data or by checking known IDs
+                    break;
+                }
+            }
+            // Determine product_source from supplier name
+            var supplierCell = btn.closest('tr') ? btn.closest('tr').cells[2] : null;
+            var supplierName = supplierCell ? supplierCell.textContent.trim().toLowerCase() : '';
+            var productSource = supplierName.includes('oil') ? 'treatment'
+                              : supplierName.includes('trader') ? 'patient'
+                              : 'admin';
+
+            document.getElementById('inv_request_id').value = requestId;
+            document.getElementById('inv_product_id').value = product.id;
+            document.getElementById('inv_product_source').value = productSource;
+            document.getElementById('inv_product_name').value = productName;
+            document.getElementById('inv_quantity').value = qty;
+
+            var today = new Date().toISOString().split('T')[0];
+            document.getElementById('inv_mfd').max = today;
+            document.getElementById('inv_exp').min = today;
+            document.getElementById('inv_mfd').value = '';
+            document.getElementById('inv_exp').value = '';
+            document.getElementById('inv_batch_number').value = 'Loading...';
+
+            document.getElementById('addInventoryModal').style.display = 'block';
+
+            suggestBatchNumberForInventory(product.id, productSource, productName);
+        }
+
+        function closeAddInventoryModal() {
+            document.getElementById('addInventoryModal').style.display = 'none';
+        }
+
+        document.getElementById('addInventoryForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            var requestId = document.getElementById('inv_request_id').value;
+            var productId = document.getElementById('inv_product_id').value;
+            var productSource = document.getElementById('inv_product_source').value;
+            var quantity = document.getElementById('inv_quantity').value;
+            var batchNumber = document.getElementById('inv_batch_number').value.trim();
+            var mfd = document.getElementById('inv_mfd').value;
+            var exp = document.getElementById('inv_exp').value;
+
+            if (!batchNumber || !mfd || !exp) {
+                showMessage('Error', 'All fields are required.', 'error');
+                return;
+            }
+
+            // Determine status from expiry
+            var today = new Date(); today.setHours(0,0,0,0);
+            var expDate = new Date(exp);
+            var thirtyDays = new Date(); thirtyDays.setDate(thirtyDays.getDate() + 30);
+            var status = expDate < today ? 'Expired' : expDate <= thirtyDays ? 'Expiring Soon' : 'Good';
+
+            var payload = new FormData();
+            payload.append('product_id', productId);
+            payload.append('product_source', productSource);
+            payload.append('batch_number', batchNumber);
+            payload.append('quantity', quantity);
+            payload.append('mfd', mfd);
+            payload.append('exp', exp);
+            payload.append('status', status);
+
+            try {
+                var res = await fetch('/dheergayu/public/api/batches/create', { method: 'POST', body: payload });
+                var data = await res.json();
+                if (!data.success) {
+                    showMessage('Error', data.error || 'Failed to add batch.', 'error');
+                    return;
+                }
+
+                // Mark request as stocked
+                var fd2 = new FormData();
+                fd2.append('action', 'mark_stocked');
+                fd2.append('request_id', requestId);
+                await fetch('/dheergayu/public/api/submit-request.php', { method: 'POST', body: fd2 });
+
+                showMessage('Success', 'Stock added to inventory successfully!', 'success');
+                closeAddInventoryModal();
+                loadRequestHistory();
+            } catch (err) {
+                showMessage('Error', 'Error: ' + err.message, 'error');
+            }
+        });
 
         loadRequestHistory();
     </script>

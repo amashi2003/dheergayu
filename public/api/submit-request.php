@@ -111,6 +111,15 @@ try {
         } else {
             echo json_encode(['success' => false, 'error' => 'Cancel failed. Request may be delivered or not found.']);
         }
+    } elseif ($action === 'mark_stocked') {
+        $request_id = (int)($_POST['request_id'] ?? 0);
+        if (!$request_id) {
+            echo json_encode(['success' => false, 'error' => 'Request ID is required.']);
+            exit;
+        }
+        $model = new ProductRequestModel($conn);
+        $ok = $model->updateRequestStatus($request_id, 'stocked');
+        echo json_encode(['success' => $ok]);
     } else {
         echo json_encode(['success' => false, 'error' => 'Invalid action']);
     }

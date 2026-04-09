@@ -208,9 +208,18 @@ function populateProductList() {
     datalist.innerHTML = '';
     availableProducts.forEach(product => {
         const option = document.createElement('option');
-        option.value = `${product.name} (Av: ${product.available_quantity} units)`;
+        let label = `${product.name} (Av: ${product.available_quantity} units)`;
+        if (product.available_quantity === 0 && product.expired_quantity > 0) {
+            label += ' ⚠ ALL EXPIRED';
+        } else if (product.available_quantity === 0) {
+            label += ' ⚠ OUT OF STOCK';
+        } else if (product.expired_quantity > 0) {
+            label += ` ⚠ ${product.expired_quantity} expired`;
+        }
+        option.value = label;
         option.setAttribute('data-product-id', product.id);
         option.setAttribute('data-available-qty', product.available_quantity);
+        option.setAttribute('data-expired-qty', product.expired_quantity);
         datalist.appendChild(option);
     });
 }
@@ -225,6 +234,20 @@ document.getElementById("add_product").addEventListener("click", function() {
     }
 
     const cleanProductName = product.split(' (Av:')[0];
+
+    // Find product data to check stock
+    const productData = availableProducts.find(p => p.name === cleanProductName);
+    if (productData) {
+        if (productData.available_quantity === 0 && productData.expired_quantity > 0) {
+            if (!confirm(`⚠ WARNING: All stock of "${cleanProductName}" is expired.\nPrescribing this is not recommended.\n\nProceed anyway?`)) return;
+        } else if (productData.available_quantity === 0) {
+            if (!confirm(`⚠ WARNING: "${cleanProductName}" is out of stock.\nPrescribing this is not recommended.\n\nProceed anyway?`)) return;
+        } else if (qty > productData.available_quantity) {
+            if (!confirm(`⚠ WARNING: Only ${productData.available_quantity} units available for "${cleanProductName}", but you are prescribing ${qty}.\n\nProceed anyway?`)) return;
+        } else if (productData.expired_quantity > 0) {
+            alert(`ℹ Note: "${cleanProductName}" has ${productData.expired_quantity} expired units in stock. The pharmacist should remove them.`);
+        }
+    }
     selectedProducts.push({ product: cleanProductName, qty: qty });
     
     document.getElementById('personal_products').value = JSON.stringify(selectedProducts);
