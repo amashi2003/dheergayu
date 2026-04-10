@@ -20,13 +20,8 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="nic">NIC</label>
-                    <input type="text" id="nic" name="nic" placeholder="Enter NIC used at signup" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="dob">Date of Birth</label>
-                    <input type="date" id="dob" name="dob" required>
+                    <label for="nic">NIC (or Registered Phone for Staff/Admin/Supplier)</label>
+                    <input type="text" id="nic" name="nic" placeholder="Enter NIC (or phone number)" required>
                 </div>
 
                 <div class="form-group">
@@ -85,10 +80,8 @@
             e.preventDefault();
             
             const formData = new FormData();
-            formData.set('account_type', 'patient');
             formData.set('email', document.getElementById('email').value.trim());
             formData.set('nic', document.getElementById('nic').value.trim());
-            formData.set('dob', document.getElementById('dob').value);
             formData.set('newPassword', document.getElementById('newPassword').value);
             formData.set('confirmPassword', document.getElementById('confirmPassword').value);
 
@@ -106,8 +99,7 @@
             };
 
             const extraRules = {
-                nic: { required: true, message: 'NIC is required for patient reset.' },
-                dob: { required: true, message: 'Date of birth is required for patient reset.' }
+                nic: { required: true, message: 'NIC (or registered phone) is required.' }
             };
 
             const confirmRule = {
@@ -126,10 +118,8 @@
             }
 
             const payload = new FormData();
-            payload.append('account_type', 'patient');
             payload.append('email', String(formData.get('email')));
             payload.append('nic', String(formData.get('nic')));
-            payload.append('dob', String(formData.get('dob')));
             payload.append('new_password', String(formData.get('newPassword')));
             payload.append('confirm_password', String(formData.get('confirmPassword')));
 

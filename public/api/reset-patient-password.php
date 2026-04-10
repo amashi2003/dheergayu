@@ -14,15 +14,13 @@ function input(string $key): string
 }
 
 try {
-    $accountType = strtolower(input('account_type'));
     $email = input('email');
-    $nic = input('nic');
-    $dob = input('dob');
-    $phone = preg_replace('/\D+/', '', input('phone'));
+    $identifier = input('nic'); // NIC for patients, phone for other user types
+    $identifierDigits = preg_replace('/\D+/', '', $identifier);
     $newPassword = input('new_password');
     $confirmPassword = input('confirm_password');
 
-    if ($accountType === '' || $email === '' || $newPassword === '' || $confirmPassword === '') {
+    if ($email === '' || $identifier === '' || $newPassword === '' || $confirmPassword === '') {
         throw new Exception('Please fill all required fields.');
     }
 
@@ -40,39 +38,44 @@ try {
 
     $targetTable = '';
     $idColumn = 'id';
-    $verifyStmt = null;
+    $userRow = null;
 
-    if ($accountType === 'patient') {
-        if ($nic === '' || $dob === '') {
-            throw new Exception('NIC and Date of Birth are required for patient reset.');
-        }
+    // 1) Patient by email + NIC
+    $patientStmt = $conn->prepare("SELECT id FROM patients WHERE email = ? AND nic = ? LIMIT 1");
+    $patientStmt->bind_param('ss', $email, $identifier);
+    $patientStmt->execute();
+    $userRow = $patientStmt->get_result()->fetch_assoc();
+    $patientStmt->close();
+    if ($userRow) {
         $targetTable = 'patients';
-        $verifyStmt = $conn->prepare("SELECT id FROM patients WHERE email = ? AND nic = ? AND dob = ? LIMIT 1");
-        $verifyStmt->bind_param('sss', $email, $nic, $dob);
-    } elseif (in_array($accountType, ['admin', 'doctor', 'staff', 'pharmacist'], true)) {
-        if ($phone === '') {
-            throw new Exception('Phone number is required for this account type.');
-        }
-        $targetTable = 'users';
-        $verifyStmt = $conn->prepare("SELECT id FROM users WHERE email = ? AND role = ? AND REPLACE(phone,' ','') = ? LIMIT 1");
-        $verifyStmt->bind_param('sss', $email, $accountType, $phone);
-    } elseif ($accountType === 'supplier') {
-        if ($phone === '') {
-            throw new Exception('Phone number is required for supplier reset.');
-        }
-        $targetTable = 'suppliers';
-        $verifyStmt = $conn->prepare("SELECT id FROM suppliers WHERE email = ? AND REPLACE(phone,' ','') = ? LIMIT 1");
-        $verifyStmt->bind_param('ss', $email, $phone);
-    } else {
-        throw new Exception('Invalid account type.');
     }
 
-    $verifyStmt->execute();
-    $userRow = $verifyStmt->get_result()->fetch_assoc();
-    $verifyStmt->close();
+    // 2) Internal users by email + phone (entered in NIC field)
+    if (!$userRow && $identifierDigits !== '') {
+        $usersStmt = $conn->prepare("SELECT id FROM users WHERE email = ? AND REPLACE(phone,' ','') = ? LIMIT 1");
+        $usersStmt->bind_param('ss', $email, $identifierDigits);
+        $usersStmt->execute();
+        $userRow = $usersStmt->get_result()->fetch_assoc();
+        $usersStmt->close();
+        if ($userRow) {
+            $targetTable = 'users';
+        }
+    }
+
+    // 3) Suppliers by email + phone (entered in NIC field)
+    if (!$userRow && $identifierDigits !== '') {
+        $supStmt = $conn->prepare("SELECT id FROM suppliers WHERE email = ? AND REPLACE(phone,' ','') = ? LIMIT 1");
+        $supStmt->bind_param('ss', $email, $identifierDigits);
+        $supStmt->execute();
+        $userRow = $supStmt->get_result()->fetch_assoc();
+        $supStmt->close();
+        if ($userRow) {
+            $targetTable = 'suppliers';
+        }
+    }
 
     if (!$userRow) {
-        throw new Exception('Verification failed. Please check your details.');
+        throw new Exception('Verification failed. Check email and NIC/phone.');
     }
 
     $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
