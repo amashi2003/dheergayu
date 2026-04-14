@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../includes/auth_doctor.php';
 require_once __DIR__ . '/../../../core/bootloader.php';
 
 // Start session if not already started

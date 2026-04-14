@@ -16,7 +16,7 @@ body {
 /* Main content */
 .main-content {
     padding: 30px;
-    width: calc(100vw - 200px);
+    width: calc(100vw - 225px);
     margin: 0;
     box-sizing: border-box;
     overflow-x: hidden;

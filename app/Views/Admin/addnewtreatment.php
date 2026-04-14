@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../includes/auth_admin.php';
 require_once __DIR__ . '/../../../core/bootloader.php';
 
 // Fetch treatment data from database if editing

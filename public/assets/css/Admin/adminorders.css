@@ -1,6 +1,54 @@
-/* Admin Orders Page Styles */
+/* Admin Payments Page Styles */
+
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap');
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: #f0f2f5;
+    color: #2d2d2d;
+    line-height: 1.6;
+}
+
+/* Tab Navigation */
+.tab-navigation {
+    display: flex;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #e0e0e0;
+    flex-wrap: wrap;
+}
+
+.tab-btn {
+    background: none;
+    border: none;
+    padding: 12px 20px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #2d2d2d;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+    margin-bottom: -2px;
+}
+
+.tab-btn:hover {
+    color: #E6A85A;
+    background-color: #f8f9fa;
+}
+
+.tab-btn.active {
+    color: #E6A85A;
+    border-bottom-color: #E6A85A;
+    background-color: #f8f9fa;
+}
+
+
 .main-content {
-    margin-left: 280px;
     padding: 30px;
     background-color: #f8f9fa;
     min-height: 100vh;

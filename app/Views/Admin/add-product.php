@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../includes/auth_admin.php';
 // Fetch product data from database if editing
 $productId = isset($_GET['product_id']) ? (int)$_GET['product_id'] : 0;
 $productType = isset($_GET['product_type']) ? trim($_GET['product_type']) : (isset($_GET['product_type']) ? $_GET['product_type'] : 'admin');
@@ -211,7 +212,7 @@ if ($productId > 0) {
             <span class="user-role">Admin</span>
             <div class="user-dropdown" id="user-dropdown">
                 <a href="adminprofile.php" class="profile-btn">Profile</a>
-                <a href="../patient/login.php" class="logout-btn">Logout</a>
+                <a href="/dheergayu/app/Views/logout.php" class="logout-btn">Logout</a>
             </div>
         </div>
     </header>

@@ -595,6 +595,38 @@ body {
     }
 }
 
+/* Payment method selector */
+.payment-method-select {
+    margin-bottom: 0.75rem;
+}
+
+.payment-method-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 0.4rem;
+}
+
+.payment-method-options {
+    display: flex;
+    gap: 1rem;
+}
+
+.payment-option {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    color: #2d2d2d;
+}
+
+.payment-option input[type="radio"] {
+    accent-color: #E6A85A;
+    cursor: pointer;
+}
+
 @media (max-width: 480px) {
     .main-content {
         padding: 0.8rem;

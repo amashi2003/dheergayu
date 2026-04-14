@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../includes/auth_admin.php';
 // Fetch products from database
 $db = new mysqli('localhost', 'root', '', 'dheergayu_db');
 
@@ -153,7 +154,9 @@ foreach($inventoryData as $item) {
             <a href="admininventoryview.php" class="nav-btn">Inventory</a>
             <a href="adminappointment.php" class="nav-btn">Appointments</a>
             <a href="adminusers.php" class="nav-btn">Users</a>
+            <a href="adminpatients.php" class="nav-btn">Patients</a>
             <a href="admintreatment.php" class="nav-btn">Treatments</a>
+            <a href="adminpayments.php" class="nav-btn">Payments</a>
             <a href="adminsuppliers.php" class="nav-btn">Supplier-info</a>
             <a href="admincontact.php" class="nav-btn">Contact Submissions</a>
         </nav>
@@ -164,7 +167,7 @@ foreach($inventoryData as $item) {
             <!-- Dropdown -->
             <div class="user-dropdown" id="user-dropdown">
                 <a href="adminprofile.php" class="profile-btn">Profile</a>
-                <a href="../patient/login.php" class="logout-btn">Logout</a>
+                <a href="/dheergayu/app/Views/logout.php" class="logout-btn">Logout</a>
             </div>
         </div>
     </header>

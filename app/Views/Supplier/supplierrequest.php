@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_set_cookie_params(['path' => '/', 'httponly' => true]);
     session_start();
 }
+require_once __DIR__ . '/../../includes/auth_supplier.php';
 
 require_once __DIR__ . '/../../../core/bootloader.php';
 require_once __DIR__ . '/../../../app/Models/ProductRequestModel.php';
@@ -56,7 +57,7 @@ if (isset($conn) && $conn instanceof mysqli) {
           <!-- Dropdown -->
           <div class="user-dropdown" id="user-dropdown">
               <a href="supplierprofile.php" class="profile-btn">Profile</a>
-              <a href="../patient/login.php" class="logout-btn">Logout</a>
+              <a href="/dheergayu/app/Views/logout.php" class="logout-btn">Logout</a>
           </div>
       </div>
   </header>

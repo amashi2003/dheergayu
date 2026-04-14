@@ -5,6 +5,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_set_cookie_params(['path' => '/', 'httponly' => true]);
     session_start();
 }
+require_once __DIR__ . '/../../includes/auth_pharmacist.php';
 require_once __DIR__ . '/../../Models/ConsultationFormModel.php';
 
 $db = new mysqli('localhost', 'root', '', 'dheergayu_db');
@@ -109,7 +110,7 @@ $recentDispatched = array_slice($dispatchedOrders, 0, 2);
             <span class="user-role">Pharmacist</span>
             <div class="user-dropdown" id="user-dropdown">
                 <a href="pharmacistprofile.php" class="profile-btn">Profile</a>
-                <a href="../patient/login.php" class="logout-btn">Logout</a>
+                <a href="/dheergayu/app/Views/logout.php" class="logout-btn">Logout</a>
             </div>
         </div>
     </header>

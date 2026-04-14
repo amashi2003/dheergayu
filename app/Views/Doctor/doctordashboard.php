@@ -1,3 +1,4 @@
+<?php require_once __DIR__ . '/../../includes/auth_doctor.php'; ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -46,42 +47,6 @@
 <body class="has-sidebar">
 
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
-// Start session first
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-// Check if user is logged in
-if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-    header('Location: ../patient/login.php');
-    exit;
-}
-
-// Check if user is a doctor
-$user_role = strtolower($_SESSION['user_role'] ?? $_SESSION['user_type'] ?? $_SESSION['role'] ?? '');
-if ($user_role !== 'doctor') {
-    echo '<!DOCTYPE html>
-<html>
-<head><title>Access Denied</title>
-<style>body{font-family:Arial;margin:50px;text-align:center;}
-.error{max-width:500px;margin:0 auto;padding:30px;border:1px solid #ddd;border-radius:10px;}
-.btn{display:inline-block;padding:10px 20px;background:#5cb85c;color:white;text-decoration:none;border-radius:5px;margin:5px;}</style>
-</head>
-<body>
-<div class="error">
-<h2 style="color:#d9534f;">Access Denied</h2>
-<p>This page is for doctors only. Your current role: ' . htmlspecialchars($user_role) . '</p>
-<a href="../patient/login.php" class="btn">Login</a>
-<a href="../patient/home.php" class="btn">Home</a>
-</div>
-</body>
-</html>';
-    exit;
-}
-
 $db = new mysqli('localhost', 'root', '', 'dheergayu_db');
 
 if ($db->connect_error) {
@@ -231,7 +196,7 @@ foreach ($treatment_plans as $plan) {
         <span class="user-role"><?php echo htmlspecialchars($doctorName); ?></span>
         <div class="user-dropdown" id="user-dropdown">
             <a href="doctorprofile.php" class="profile-btn">Profile</a>
-            <a href="../patient/login.php" class="logout-btn">Logout</a>
+            <a href="/dheergayu/app/Views/logout.php" class="logout-btn">Logout</a>
         </div>
     </div>
 </header>

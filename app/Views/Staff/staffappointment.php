@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../includes/auth_staff.php';
 session_start();
 
 // Check if user is logged in
@@ -284,7 +285,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <!-- Dropdown -->
             <div class="user-dropdown" id="user-dropdown">
                 <a href="staffprofile.php" class="profile-btn">Profile</a>
-                <a href="../patient/login.php" class="logout-btn">Logout</a>
+                <a href="/dheergayu/app/Views/logout.php" class="logout-btn">Logout</a>
             </div>
         </div>
     </header>

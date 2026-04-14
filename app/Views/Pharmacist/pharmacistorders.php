@@ -1,4 +1,10 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_name('PHARMACIST_SID');
+    session_set_cookie_params(['path' => '/', 'httponly' => true]);
+    session_start();
+}
+require_once __DIR__ . '/../../includes/auth_pharmacist.php';
 // Fetch consultation forms from database
 require_once __DIR__ . '/../../Models/ConsultationFormModel.php';
 
@@ -81,7 +87,7 @@ if (!$db->connect_error) $db->close();
             <span class="user-role">Pharmacist</span>
             <div class="user-dropdown" id="user-dropdown">
                 <a href="pharmacistprofile.php" class="profile-btn">Profile</a>
-                <a href="../patient/login.php" class="logout-btn">Logout</a>
+                <a href="/dheergayu/app/Views/logout.php" class="logout-btn">Logout</a>
             </div>
         </div>
     </header>
@@ -376,6 +382,10 @@ if (!$db->connect_error) $db->close();
                 var formData = new FormData();
                 formData.append('consultation_id', consultationId);
                 formData.append('dispatched', isDispatched ? '1' : '0');
+
+                // Read selected payment method (only present on pending cards)
+                var selectedMethod = card.querySelector('.payment-method-radio:checked');
+                formData.append('payment_method', selectedMethod ? selectedMethod.value : 'cash');
 
                 var response = await fetch('/dheergayu/app/Controllers/pharmacist_dispatch.php', { method: 'POST', body: formData });
                 var result = await response.json();
