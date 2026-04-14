@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <?php
 if (session_status() === PHP_SESSION_NONE) {
     session_name('PHARMACIST_SID');
@@ -6,9 +5,10 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/../../includes/auth_pharmacist.php';
+require_once __DIR__ . '/../../../config/config.php';
 require_once __DIR__ . '/../../Models/ConsultationFormModel.php';
 
-$db = new mysqli('localhost', 'root', '', 'dheergayu_db');
+$db = $conn;
 
 $consultations = [];
 $dispatchStatuses = [];

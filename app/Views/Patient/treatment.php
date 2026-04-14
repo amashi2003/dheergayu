@@ -1,6 +1,7 @@
 <?php
+require_once __DIR__ . '/../../../config/config.php';
 // Fetch active treatments from database
-$db = new mysqli('localhost', 'root', '', 'dheergayu_db');
+$db = $conn;
 
 if ($db->connect_error) {
     die("Connection failed: " . $db->connect_error);

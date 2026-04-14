@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../../includes/auth_staff.php';
-session_start();
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once __DIR__ . '/../../../config/config.php';
 
 $staff = ['name' => '', 'age' => '', 'email' => '', 'contact' => '', 'address' => '', 'gender' => ''];

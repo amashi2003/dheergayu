@@ -12,7 +12,7 @@ use App\Models\BatchModel;
 $model = new BatchModel();
 
 // Database connection
-$db = new mysqli('localhost', 'root', '', 'dheergayu_db');
+$db = $conn;
 
 // Function to get product image
 function get_product_image($image_path, $name, $type = 'admin') {

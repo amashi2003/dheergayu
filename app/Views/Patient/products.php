@@ -1,11 +1,12 @@
 <?php
+require_once __DIR__ . '/../../../config/config.php';
 session_start();
 $patientProducts = [];
 $adminProducts   = [];
 $productsError   = '';
 $loggedIn       = !empty($_SESSION['user_id']);
 
-$db = new mysqli('localhost', 'root', '', 'dheergayu_db');
+$db = $conn;
 
 if ($db->connect_error) {
     $productsError = 'Failed to load products. Please try again later.';

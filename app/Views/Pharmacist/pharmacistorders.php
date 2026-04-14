@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../../config/config.php';
 if (session_status() === PHP_SESSION_NONE) {
     session_name('PHARMACIST_SID');
     session_set_cookie_params(['path' => '/', 'httponly' => true]);
@@ -8,7 +9,7 @@ require_once __DIR__ . '/../../includes/auth_pharmacist.php';
 // Fetch consultation forms from database
 require_once __DIR__ . '/../../Models/ConsultationFormModel.php';
 
-$db = new mysqli('localhost', 'root', '', 'dheergayu_db');
+$db = $conn;
 if ($db->connect_error) {
     $consultations = [];
 } else {

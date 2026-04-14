@@ -1,6 +1,7 @@
 <?php
+require_once __DIR__ . '/../../../config/config.php';
 require_once __DIR__ . '/../../includes/auth_staff.php';
-session_start();
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
 // Check if user is logged in
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
@@ -16,7 +17,7 @@ if ($user_role !== 'staff') {
 }
 
 // Fetch appointments from database - ALL appointments from ALL doctors
-$db = new mysqli('localhost', 'root', '', 'dheergayu_db');
+$db = $conn;
 
 if ($db->connect_error) {
     die("Connection failed: " . $db->connect_error);

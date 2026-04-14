@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../../config/config.php';
 require_once __DIR__ . '/../../includes/auth_admin.php';
 require_once __DIR__ . '/../../../core/bootloader.php';
 
@@ -7,7 +8,7 @@ use App\Models\BatchModel;
 $model = new BatchModel();
 
 // Database connection
-$db = new mysqli('localhost', 'root', '', 'dheergayu_db');
+$db = $conn;
 
 // Function to get product image
 function get_product_image($image_path, $name) {

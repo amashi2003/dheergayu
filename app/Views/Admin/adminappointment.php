@@ -1,9 +1,10 @@
 <?php
+require_once __DIR__ . '/../../../config/config.php';
 require_once __DIR__ . '/../../includes/auth_admin.php';
 // Fetch appointments from database
 require_once __DIR__ . '/../../Models/AppointmentModel.php';
 
-$db = new mysqli('localhost', 'root', '', 'dheergayu_db');
+$db = $conn;
 $appointmentModel = new AppointmentModel($db);
 $appointments = $appointmentModel->getAllDoctorAppointments();
 
