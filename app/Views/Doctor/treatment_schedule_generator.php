@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../includes/auth_doctor.php';
 $appointment_id = $_GET['appointment_id'] ?? '';
 $patient_id = $_GET['patient_id'] ?? '';
 

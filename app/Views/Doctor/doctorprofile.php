@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/../../includes/auth_doctor.php';
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once __DIR__ . '/../../../config/config.php';
 
 // Check if user is logged in and is a doctor
@@ -63,7 +64,7 @@ $doctorData = [
             <span class="user-role">Dr. <?php echo htmlspecialchars($doctor['last_name']); ?></span>
             <div class="user-dropdown" id="user-dropdown">
                 <a href="doctorprofile.php" class="profile-btn">Profile</a>
-                <a href="../patient/login.php" class="logout-btn">Logout</a>
+                <a href="/dheergayu/app/Views/logout.php" class="logout-btn">Logout</a>
             </div>
         </div>
     </header>

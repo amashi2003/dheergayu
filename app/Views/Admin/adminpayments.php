@@ -1,7 +1,7 @@
 <?php
+require_once __DIR__ . '/../../includes/auth_admin.php';
 require_once __DIR__ . '/../../../config/config.php';
 
-// Fetch orders from database
 $ordersQuery = "SELECT * FROM orders ORDER BY created_at DESC";
 $ordersResult = $conn->query($ordersQuery);
 $orders = [];
@@ -11,19 +11,26 @@ if ($ordersResult) {
     }
 }
 
-// Calculate summary statistics
-$totalOrders = count($orders);
 $totalRevenue = 0;
-$paidOrders = 0;
-$pendingOrders = 0;
+$productCount = 0;
+$appointmentCount = 0;
+$treatmentPlanCount = 0;
+$dispensedCount = 0;
+
+function classifyOrder($items) {
+    if (strpos($items, 'Dispensed:') === 0)      return 'dispensed';
+    if (strpos($items, 'Treatment Plan #') === 0) return 'treatment-plan';
+    if (preg_match('/^(Consultation|Treatment) #\d+/i', $items)) return 'appointment';
+    return 'product';
+}
 
 foreach ($orders as $order) {
     $totalRevenue += $order['amount'];
-    if ($order['status'] == 'paid') {
-        $paidOrders++;
-    } elseif ($order['status'] == 'pending') {
-        $pendingOrders++;
-    }
+    $type = classifyOrder($order['order_items'] ?? '');
+    if ($type === 'product') $productCount++;
+    elseif ($type === 'appointment') $appointmentCount++;
+    elseif ($type === 'treatment-plan') $treatmentPlanCount++;
+    else $dispensedCount++;
 }
 ?>
 <!DOCTYPE html>
@@ -31,7 +38,7 @@ foreach ($orders as $order) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - Orders Management</title>
+    <title>Admin - Payments</title>
     <link rel="stylesheet" href="/dheergayu/public/assets/css/header.css">
     <script src="/dheergayu/public/assets/js/header.js"></script>
     <link rel="stylesheet" href="/dheergayu/public/assets/css/Admin/adminorders.css">
@@ -52,8 +59,9 @@ foreach ($orders as $order) {
             <a href="admininventoryview.php" class="nav-btn">Inventory</a>
             <a href="adminappointment.php" class="nav-btn">Appointments</a>
             <a href="adminusers.php" class="nav-btn">Users</a>
+            <a href="adminpatients.php" class="nav-btn">Patients</a>
             <a href="admintreatment.php" class="nav-btn">Treatments</a>
-            <button class="nav-btn active">Orders</button>
+            <button class="nav-btn active">Payments</button>
             <a href="adminsuppliers.php" class="nav-btn">Supplier-info</a>
             <a href="admincontact.php" class="nav-btn">Contact Submissions</a>
         </nav>
@@ -61,7 +69,6 @@ foreach ($orders as $order) {
         <div class="user-section">
             <div class="user-icon" id="user-icon">👤</div>
             <span class="user-role">Admin</span>
-            <!-- Dropdown -->
             <div class="user-dropdown" id="user-dropdown">
                 <a href="/dheergayu/app/Views/logout.php" class="dropdown-item">Logout</a>
             </div>
@@ -71,44 +78,14 @@ foreach ($orders as $order) {
     <!-- Main Content -->
     <main class="main-content">
         <div class="content-header">
-            <h1>Orders Management</h1>
-            <p>View and manage all customer orders</p>
+            <h1>Payments</h1>
+            <p>All payments across product orders, appointments, and treatment plans</p>
         </div>
 
-        <!-- Statistics Cards -->
+        <!-- Summary Cards -->
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-icon">
-                    <i class="fas fa-shopping-cart"></i>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-value"><?php echo $totalOrders; ?></div>
-                    <div class="stat-label">Total Orders</div>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-icon success">
-                    <i class="fas fa-check-circle"></i>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-value"><?php echo $paidOrders; ?></div>
-                    <div class="stat-label">Paid Orders</div>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-icon warning">
-                    <i class="fas fa-clock"></i>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-value"><?php echo $pendingOrders; ?></div>
-                    <div class="stat-label">Pending Orders</div>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-icon revenue">
                     <i class="fas fa-dollar-sign"></i>
                 </div>
                 <div class="stat-content">
@@ -116,12 +93,57 @@ foreach ($orders as $order) {
                     <div class="stat-label">Total Revenue</div>
                 </div>
             </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg,#4CAF50,#45a049)">
+                    <i class="fas fa-shopping-cart"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value"><?php echo $productCount; ?></div>
+                    <div class="stat-label">Product Orders</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg,#ff9800,#f57c00)">
+                    <i class="fas fa-calendar-check"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value"><?php echo $appointmentCount; ?></div>
+                    <div class="stat-label">Appointment Payments</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg,#9c27b0,#7b1fa2)">
+                    <i class="fas fa-notes-medical"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value"><?php echo $treatmentPlanCount; ?></div>
+                    <div class="stat-label">Treatment Plan Payments</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg,#2e7d32,#43a047)">
+                    <i class="fas fa-pills"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value"><?php echo $dispensedCount; ?></div>
+                    <div class="stat-label">Dispensed</div>
+                </div>
+            </div>
         </div>
 
-        <!-- Orders Table -->
+        <!-- Tab Navigation -->
+        <div class="tab-navigation">
+            <button class="tab-btn active" onclick="showTab('all', this)">All</button>
+            <button class="tab-btn" onclick="showTab('product', this)">Product Orders</button>
+            <button class="tab-btn" onclick="showTab('appointment', this)">Appointment Payments</button>
+            <button class="tab-btn" onclick="showTab('treatment-plan', this)">Treatment Plan Payments</button>
+            <button class="tab-btn" onclick="showTab('dispensed', this)">Dispensed</button>
+        </div>
+
+        <!-- Payments Table -->
         <div class="orders-section">
             <div class="section-header">
-                <h2>All Orders</h2>
+                <h2 id="tabTitle">All Payments</h2>
                 <div class="filters">
                     <select id="statusFilter" class="filter-select">
                         <option value="">All Status</option>
@@ -139,42 +161,42 @@ foreach ($orders as $order) {
                         <tr>
                             <th>Order ID</th>
                             <th>Customer</th>
+                            <th>Description</th>
                             <th>Amount</th>
                             <th>Status</th>
                             <th>Payment Method</th>
                             <th>Date</th>
-                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($orders)): ?>
                         <tr>
                             <td colspan="7" class="no-orders">
-                                <i class="fas fa-shopping-cart"></i>
-                                <p>No orders found</p>
+                                <i class="fas fa-receipt"></i>
+                                <p>No payments found</p>
                             </td>
                         </tr>
                         <?php else: ?>
-                            <?php foreach ($orders as $order): ?>
-                            <tr class="order-row" data-status="<?php echo $order['status']; ?>">
+                            <?php foreach ($orders as $order):
+                                $type = classifyOrder($order['order_items'] ?? '');
+                            ?>
+                            <tr class="order-row"
+                                data-status="<?php echo htmlspecialchars($order['status']); ?>"
+                                data-type="<?php echo $type; ?>">
                                 <td class="order-id"><?php echo htmlspecialchars($order['order_id']); ?></td>
                                 <td class="customer-info">
                                     <div class="customer-name"><?php echo htmlspecialchars($order['customer_name']); ?></div>
                                     <div class="customer-email"><?php echo htmlspecialchars($order['customer_email']); ?></div>
                                 </td>
+                                <td><?php echo htmlspecialchars($order['order_items'] ?? '-'); ?></td>
                                 <td class="amount">Rs. <?php echo number_format($order['amount'], 2); ?></td>
-                                <td class="status">
+                                <td>
                                     <span class="status-badge status-<?php echo $order['status']; ?>">
                                         <?php echo ucfirst($order['status']); ?>
                                     </span>
                                 </td>
                                 <td class="payment-method"><?php echo ucfirst($order['payment_method']); ?></td>
                                 <td class="date"><?php echo date('M d, Y H:i', strtotime($order['created_at'])); ?></td>
-                                <td class="actions">
-                                    <button class="action-btn view-btn" onclick="viewOrderDetails(<?php echo $order['id']; ?>)">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                </td>
                             </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>
@@ -184,77 +206,42 @@ foreach ($orders as $order) {
         </div>
     </main>
 
-    <!-- Order Details Modal -->
-    <div id="orderModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Order Details</h3>
-                <span class="close-modal" onclick="closeModal()">&times;</span>
-            </div>
-            <div id="orderDetails" class="modal-body">
-                <!-- Order details will be loaded here -->
-            </div>
-        </div>
-    </div>
-
     <script>
-        // Filter orders by status
-        document.getElementById('statusFilter').addEventListener('change', function() {
-            const filterValue = this.value.toLowerCase();
-            const rows = document.querySelectorAll('.order-row');
+        const tabTitles = {
+            all: 'All Payments',
+            product: 'Product Orders',
+            appointment: 'Appointment Payments',
+            'treatment-plan': 'Treatment Plan Payments',
+            dispensed: 'Dispensed'
+        };
 
-            rows.forEach(row => {
-                const status = row.dataset.status;
-                if (filterValue === '' || status === filterValue) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
+        function showTab(type, btn) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('tabTitle').textContent = tabTitles[type];
+            applyFilters(type, document.getElementById('statusFilter').value);
+        }
+
+        function applyFilters(type, status) {
+            document.querySelectorAll('.order-row').forEach(row => {
+                const typeMatch = type === 'all' || row.dataset.type === type;
+                const statusMatch = status === '' || row.dataset.status === status;
+                row.style.display = typeMatch && statusMatch ? '' : 'none';
             });
+        }
+
+        document.getElementById('statusFilter').addEventListener('change', function () {
+            const activeTab = document.querySelector('.tab-btn.active');
+            const labelMap = {
+                'All': 'all',
+                'Product Orders': 'product',
+                'Appointment Payments': 'appointment',
+                'Treatment Plan Payments': 'treatment-plan',
+                'Dispensed': 'dispensed'
+            };
+            const type = activeTab ? (labelMap[activeTab.textContent.trim()] || 'all') : 'all';
+            applyFilters(type, this.value);
         });
-
-        // View order details
-        function viewOrderDetails(orderId) {
-            // For now, just show a placeholder
-            // In a real implementation, you'd fetch order details via AJAX
-            const modal = document.getElementById('orderModal');
-            const details = document.getElementById('orderDetails');
-
-            details.innerHTML = `
-                <div class="order-detail-section">
-                    <h4>Order Information</h4>
-                    <p><strong>Order ID:</strong> Loading...</p>
-                    <p><strong>Status:</strong> Loading...</p>
-                    <p><strong>Amount:</strong> Loading...</p>
-                </div>
-                <div class="order-detail-section">
-                    <h4>Customer Information</h4>
-                    <p><strong>Name:</strong> Loading...</p>
-                    <p><strong>Email:</strong> Loading...</p>
-                    <p><strong>Phone:</strong> Loading...</p>
-                </div>
-                <div class="order-detail-section">
-                    <h4>Delivery Information</h4>
-                    <p><strong>Address:</strong> Loading...</p>
-                    <p><strong>City:</strong> Loading...</p>
-                </div>
-            `;
-
-            modal.style.display = 'block';
-        }
-
-        // Close modal
-        function closeModal() {
-            document.getElementById('orderModal').style.display = 'none';
-        }
-
-        // Close modal when clicking outside
-        window.onclick = function(event) {
-            const modal = document.getElementById('orderModal');
-            if (event.target == modal) {
-                modal.style.display = 'none';
-            }
-        }
     </script>
 
 </body>

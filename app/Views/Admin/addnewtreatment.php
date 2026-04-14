@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/../../../config/config.php';
+require_once __DIR__ . '/../../includes/auth_admin.php';
 require_once __DIR__ . '/../../../core/bootloader.php';
 
 // Fetch treatment data from database if editing
@@ -12,7 +14,7 @@ $currentImage = '';
 
 if ($treatmentId > 0) {
     // Fetch treatment data from database
-    $db = new mysqli('localhost', 'root', '', 'dheergayu_db');
+    $db = $conn;
     if (!$db->connect_error) {
         $stmt = $db->prepare("SELECT treatment_id, treatment_name, description, duration, price, image, status FROM treatment_list WHERE treatment_id = ?");
         $stmt->bind_param('i', $treatmentId);

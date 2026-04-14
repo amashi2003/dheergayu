@@ -11,12 +11,13 @@ body {
     font-family: 'Roboto', sans-serif;
     background-color: #f0f2f5;
     color: #2d2d2d;
+    line-height: 1.6;
 }
 
 /* Main Content */
 .main-content {
     padding: 30px;
-    width: calc(100vw - 200px);
+    width: calc(100vw - 225px);
     margin: 0;
     box-sizing: border-box;
     overflow-x: hidden;

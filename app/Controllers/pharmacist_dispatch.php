@@ -9,6 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $consultationId = (int)($_POST['consultation_id'] ?? 0);
 $dispatched = isset($_POST['dispatched']) && $_POST['dispatched'] === '1';
+$paymentMethod = in_array($_POST['payment_method'] ?? '', ['cash', 'card']) ? $_POST['payment_method'] : 'cash';
 
 if ($consultationId <= 0) {
     echo json_encode(['success' => false, 'message' => 'Invalid consultation id']);
@@ -125,6 +126,67 @@ try {
             throw new Exception('Dispatch save failed: ' . $saveStmt->error);
         }
         $saveStmt->close();
+
+        // Record cash payment in orders table for admin visibility (only on first dispatch)
+        if (!$alreadyDispatched) {
+            // Get patient info from consultationforms
+            $cfStmt = $db->prepare("
+                SELECT cf.first_name, cf.last_name, cf.patient_id, cf.personal_products,
+                       p.email
+                FROM consultationforms cf
+                LEFT JOIN patients p ON cf.patient_id = p.id
+                WHERE cf.appointment_id = ? OR cf.id = ?
+                LIMIT 1
+            ");
+            $cfStmt->bind_param('ii', $consultationId, $consultationId);
+            $cfStmt->execute();
+            $cfRow = $cfStmt->get_result()->fetch_assoc();
+            $cfStmt->close();
+
+            if ($cfRow) {
+                // Calculate total from product prices
+                $dispatchedItems = is_array($items) ? $items : [];
+                $totalAmount = 0;
+                $itemLabels = [];
+                foreach ($dispatchedItems as $item) {
+                    $pName = trim($item['product'] ?? $item['name'] ?? '');
+                    $qty   = (int)($item['qty'] ?? $item['quantity'] ?? 1);
+                    if ($pName === '') continue;
+                    $priceStmt = $db->prepare("SELECT price FROM products WHERE name = ? LIMIT 1");
+                    $priceStmt->bind_param('s', $pName);
+                    $priceStmt->execute();
+                    $priceRow = $priceStmt->get_result()->fetch_assoc();
+                    $priceStmt->close();
+                    $price = $priceRow ? (float)$priceRow['price'] : 0;
+                    $totalAmount += $price * $qty;
+                    $itemLabels[] = $pName . ' x' . $qty;
+                }
+
+                $orderId      = 'DISP' . $consultationId . '_' . time();
+                $customerName = trim($cfRow['first_name'] . ' ' . $cfRow['last_name']);
+                $customerEmail = $cfRow['email'] ?? '';
+                $patientId    = (int)($cfRow['patient_id'] ?? 0);
+                $orderItems   = 'Dispensed: ' . implode(', ', $itemLabels);
+                $status       = 'paid';
+                $method       = $paymentMethod;
+
+                $ordStmt = $db->prepare("
+                    INSERT INTO orders
+                        (order_id, payment_id, user_id, amount, currency,
+                         payment_method, status, customer_name, customer_email,
+                         customer_phone, delivery_address, delivery_city,
+                         order_items, created_at)
+                    VALUES (?, '', ?, ?, 'LKR', ?, ?, ?, ?, '', 'N/A', 'N/A', ?, NOW())
+                    ON DUPLICATE KEY UPDATE status = status
+                ");
+                $ordStmt->bind_param('sidsssss',
+                    $orderId, $patientId, $totalAmount,
+                    $method, $status, $customerName, $customerEmail, $orderItems
+                );
+                $ordStmt->execute();
+                $ordStmt->close();
+            }
+        }
     } else {
         $stmt = $db->prepare("DELETE FROM consultation_dispatches WHERE consultation_id = ?");
         $stmt->bind_param('i', $consultationId);

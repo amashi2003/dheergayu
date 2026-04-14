@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../includes/auth_doctor.php';
 require_once __DIR__ . '/../../../core/bootloader.php';
 // Popup-based treatment selector — returns selection to opener via postMessage
 $treatments = [];

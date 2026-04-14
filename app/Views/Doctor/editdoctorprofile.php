@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../includes/auth_doctor.php';
 // Example data – in real case, fetch from database
 $doctor = [
     'name' => 'G.B.D.Bandara',
@@ -49,7 +50,7 @@ $doctor = [
             <span class="user-role">Doctor</span>
             <div class="user-dropdown" id="user-dropdown">
                 <a href="doctorprofile.php" class="profile-btn">Profile</a>
-                <a href="../patient/login.php" class="logout-btn">Logout</a>
+                <a href="/dheergayu/app/Views/logout.php" class="logout-btn">Logout</a>
             </div>
         </div>
     </header>

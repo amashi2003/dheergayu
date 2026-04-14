@@ -35,6 +35,21 @@ $isDispatched = isset($dispatchStatuses[$consultation['id']]) && $dispatchStatus
                 <button type="button" class="total-button" onclick="calculateTotal('<?= $consultation['id'] ?>')">View Total</button>
             </div>
             <div class="dispatch-section">
+                <?php if (!$isDispatched): ?>
+                <div class="payment-method-select">
+                    <label class="payment-method-label">Payment Method</label>
+                    <div class="payment-method-options">
+                        <label class="payment-option">
+                            <input type="radio" name="payment_method_<?= (int)$consultation['id'] ?>" class="payment-method-radio" value="cash" checked>
+                            <span>Cash</span>
+                        </label>
+                        <label class="payment-option">
+                            <input type="radio" name="payment_method_<?= (int)$consultation['id'] ?>" class="payment-method-radio" value="card">
+                            <span>Card</span>
+                        </label>
+                    </div>
+                </div>
+                <?php endif; ?>
                 <label class="dispatch-label">
                     <input type="checkbox" class="dispense-status" <?= $isDispatched ? 'checked' : '' ?> onchange="toggleDispatch(<?= (int)$consultation['id'] ?>, this.checked)">
                     <span>Mark as Dispatched</span>

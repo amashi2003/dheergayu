@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/../../includes/auth_staff.php';
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once __DIR__ . '/../../../config/config.php';
 
 $staff = ['name' => '', 'age' => '', 'email' => '', 'contact' => '', 'address' => '', 'gender' => ''];
@@ -56,7 +57,7 @@ $conn->close();
             <span class="user-role">Staff</span>
             <div class="user-dropdown" id="user-dropdown">
                 <a href="staffprofile.php" class="profile-btn">Profile</a>
-                <a href="../patient/login.php" class="logout-btn">Logout</a>
+                <a href="/dheergayu/app/Views/logout.php" class="logout-btn">Logout</a>
             </div>
         </div>
     </header>

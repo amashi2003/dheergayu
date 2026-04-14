@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/../../includes/auth_doctor.php';
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
 // Check if user is logged in and is a doctor
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'doctor') {
@@ -40,7 +41,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'doctor') {
       <!-- Dropdown -->
       <div class="user-dropdown" id="user-dropdown">
         <a href="doctorprofile.php" class="profile-btn">Profile</a>
-        <a href="../patient/login.php" class="logout-btn">Logout</a>
+        <a href="/dheergayu/app/Views/logout.php" class="logout-btn">Logout</a>
       </div>
     </div>
   </header>

@@ -1,5 +1,7 @@
 <?php
-session_start();
+require_once __DIR__ . '/../../../config/config.php';
+require_once __DIR__ . '/../../includes/auth_staff.php';
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
 // Check if user is logged in
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
@@ -15,7 +17,7 @@ if ($user_role !== 'staff') {
 }
 
 // Fetch treatments from database
-$db = new mysqli('localhost', 'root', '', 'dheergayu_db');
+$db = $conn;
 
 if ($db->connect_error) {
     die("Database connection failed: " . $db->connect_error);
@@ -290,7 +292,7 @@ $db->close();
             <!-- Dropdown -->
             <div class="user-dropdown" id="user-dropdown">
                 <a href="staffprofile.php" class="profile-btn">Profile</a>
-                <a href="../patient/login.php" class="logout-btn">Logout</a>
+                <a href="/dheergayu/app/Views/logout.php" class="logout-btn">Logout</a>
             </div>
         </div>
     </header>

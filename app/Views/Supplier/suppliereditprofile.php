@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_set_cookie_params(['path' => '/', 'httponly' => true]);
     session_start();
 }
+require_once __DIR__ . '/../../includes/auth_supplier.php';
 
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || $_SESSION['user_type'] !== 'supplier') {
     header("Location: ../patient/login.php");
@@ -69,7 +70,7 @@ $supplier = [
             <span class="user-role">Supplier</span>
             <div class="user-dropdown" id="user-dropdown">
                 <a href="supplierprofile.php" class="profile-btn">Profile</a>
-                <a href="../patient/login.php" class="logout-btn">Logout</a>
+                <a href="/dheergayu/app/Views/logout.php" class="logout-btn">Logout</a>
             </div>
         </div>
     </header>

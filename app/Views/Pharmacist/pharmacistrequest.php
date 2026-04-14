@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_set_cookie_params(['path' => '/', 'httponly' => true]);
     session_start();
 }
+require_once __DIR__ . '/../../includes/auth_pharmacist.php';
 require_once __DIR__ . '/../../../core/bootloader.php';
 require_once __DIR__ . '/../../../config/config.php';
 require_once __DIR__ . '/../../Models/SupplierModel.php';
@@ -85,7 +86,7 @@ if (!empty($_SESSION['user_id'])) {
             <span class="user-role">Pharmacist</span>
             <div class="user-dropdown" id="user-dropdown">
                 <a href="pharmacistprofile.php" class="profile-btn">Profile</a>
-                <a href="../patient/login.php" class="logout-btn">Logout</a>
+                <a href="/dheergayu/app/Views/logout.php" class="logout-btn">Logout</a>
             </div>
         </div>
     </header>

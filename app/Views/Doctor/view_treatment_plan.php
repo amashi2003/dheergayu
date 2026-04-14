@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/../../includes/auth_doctor.php';
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once __DIR__ . '/../../../config/config.php';
 
 $user_role = strtolower($_SESSION['role'] ?? $_SESSION['user_type'] ?? '');

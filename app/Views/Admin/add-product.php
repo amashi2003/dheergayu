@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/../../../config/config.php';
+require_once __DIR__ . '/../../includes/auth_admin.php';
 // Fetch product data from database if editing
 $productId = isset($_GET['product_id']) ? (int)$_GET['product_id'] : 0;
 $productType = isset($_GET['product_type']) ? trim($_GET['product_type']) : (isset($_GET['product_type']) ? $_GET['product_type'] : 'admin');
@@ -12,7 +14,7 @@ $table_name = 'products';
 
 if ($productId > 0) {
     // Fetch product data from database
-    $db = new mysqli('localhost', 'root', '', 'dheergayu_db');
+    $db = $conn;
     if (!$db->connect_error) {
         $stmt = $db->prepare("SELECT product_id, name, price, description, image FROM $table_name WHERE product_id = ?");
         $stmt->bind_param('i', $productId);
@@ -211,7 +213,7 @@ if ($productId > 0) {
             <span class="user-role">Admin</span>
             <div class="user-dropdown" id="user-dropdown">
                 <a href="adminprofile.php" class="profile-btn">Profile</a>
-                <a href="../patient/login.php" class="logout-btn">Logout</a>
+                <a href="/dheergayu/app/Views/logout.php" class="logout-btn">Logout</a>
             </div>
         </div>
     </header>
