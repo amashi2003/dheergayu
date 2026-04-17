@@ -54,6 +54,29 @@ while ($row = $result->fetch_assoc()) {
 }
 $stmt->close();
 
+$today = date('Y-m-d');
+$deriveAppointmentStatus = function(array $apt) use ($today): string {
+    $statusRaw = strtoupper(trim($apt['status'] ?? ''));
+    $appointmentDate = substr((string)($apt['appointment_date'] ?? ''), 0, 10);
+
+    // Treat future-dated "Completed" records as upcoming in dashboard views.
+    if ($statusRaw === 'COMPLETED' && $appointmentDate !== '' && $appointmentDate > $today) {
+        return 'UPCOMING';
+    }
+
+    if ($statusRaw === 'PENDING' || $statusRaw === 'CONFIRMED') {
+        return 'UPCOMING';
+    }
+    if ($statusRaw === 'COMPLETED') {
+        return 'COMPLETED';
+    }
+    if ($statusRaw === 'CANCELLED') {
+        return 'CANCELLED';
+    }
+
+    return $statusRaw;
+};
+
 // Compute appointment counts
 $totalAppointments = count($appointments);
 $upcomingAppointments = 0;
@@ -61,12 +84,12 @@ $completedAppointments = 0;
 $cancelledAppointments = 0;
 
 foreach ($appointments as $apt) {
-    $statusRaw = strtoupper(trim($apt['status'] ?? ''));
-    if ($statusRaw === 'PENDING' || $statusRaw === 'CONFIRMED') {
+    $derivedStatus = $deriveAppointmentStatus($apt);
+    if ($derivedStatus === 'UPCOMING') {
         $upcomingAppointments++;
-    } elseif ($statusRaw === 'COMPLETED') {
+    } elseif ($derivedStatus === 'COMPLETED') {
         $completedAppointments++;
-    } elseif ($statusRaw === 'CANCELLED') {
+    } elseif ($derivedStatus === 'CANCELLED') {
         $cancelledAppointments++;
     }
 }
@@ -345,12 +368,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         <?php if (!empty($appointments)) : ?>
                             <?php foreach ($appointments as $apt) : ?>
                                 <?php
-                                    $statusUpper = strtoupper(trim($apt['status'] ?? ''));
-                                    if ($statusUpper === 'PENDING' || $statusUpper === 'CONFIRMED') {
+                                    $derivedStatus = $deriveAppointmentStatus($apt);
+                                    if ($derivedStatus === 'UPCOMING') {
                                         $status = 'Upcoming';
-                                    } elseif ($statusUpper === 'COMPLETED') {
+                                    } elseif ($derivedStatus === 'COMPLETED') {
                                         $status = 'Completed';
-                                    } elseif ($statusUpper === 'CANCELLED') {
+                                    } elseif ($derivedStatus === 'CANCELLED') {
                                         $status = 'Cancelled';
                                     } else {
                                         $status = $apt['status'];
