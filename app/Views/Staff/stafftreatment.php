@@ -48,12 +48,14 @@ $assignedTreatmentType = $staffAssignment['treatment_type'] ?? null;
 )");
 
 // Fetch treatment plans selected by this staff only ("I'll do this" confirmed plans).
+$today = date('Y-m-d');
 $treatment_plans_query = "
     SELECT tp.*, p.first_name, p.last_name, p.email, tl.treatment_name, tl.price as treatment_price,
         (SELECT COUNT(*) FROM treatment_sessions WHERE plan_id = tp.plan_id) as total_booked_sessions,
         (SELECT COUNT(*) FROM treatment_sessions WHERE plan_id = tp.plan_id AND status = 'Completed') as completed_sessions,
         (SELECT COUNT(*) FROM treatment_sessions WHERE plan_id = tp.plan_id AND status = 'Confirmed') as confirmed_sessions,
-        (SELECT COUNT(*) FROM staff_treatment_forms WHERE plan_id = tp.plan_id AND staff_id = " . intval($staffUserId) . ") as has_treatment_form
+        (SELECT COUNT(*) FROM staff_treatment_forms WHERE plan_id = tp.plan_id AND staff_id = " . intval($staffUserId) . ") as has_treatment_form,
+        (SELECT COUNT(*) FROM treatment_sessions WHERE plan_id = tp.plan_id AND session_date = '$today' AND status != 'Completed') as has_today_session
     FROM treatment_plans tp
     LEFT JOIN patients p ON tp.patient_id = p.id
     LEFT JOIN treatment_list tl ON tp.treatment_id = tl.treatment_id
@@ -415,6 +417,11 @@ $db->close();
                 </div>
             </div>
 
+            <div style="margin-bottom:16px;">
+                <button class="tab-btn-treat active" data-tab="all" onclick="filterTreatments('all',this)">All Treatments</button>
+                <button class="tab-btn-treat" data-tab="today" onclick="filterTreatments('today',this)">Today's Treatments</button>
+            </div>
+
             <div class="table-container">
                 <table class="treatment-table">
                     <thead>
@@ -427,7 +434,7 @@ $db->close();
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="treatment-tbody">
                         <?php if (!empty($treatment_plans)): ?>
                             <?php foreach ($treatment_plans as $plan): ?>
                                 <?php
@@ -437,10 +444,10 @@ $db->close();
                                     $tpAssignedId = (int)($plan['assigned_staff_id'] ?? 0);
                                     $assignedToMe = $tpAssignedId !== 0 && $tpAssignedId === (int)$staffUserId;
                                     $displayStatus = $tpStatus;
-                                    // New confirmed (paid) sessions waiting to be treated
                                     $hasNewConfirmedSessions = (int)($plan['confirmed_sessions'] ?? 0) > 0;
+                                    $isToday = (int)($plan['has_today_session'] ?? 0) > 0;
                                 ?>
-                                <tr>
+                                <tr class="treatment-row" data-today="<?= $isToday ? 'true' : 'false' ?>">
                                     <td><?= $plan['plan_id'] ?></td>
                                     <td><?= htmlspecialchars($plan['first_name'] . ' ' . $plan['last_name']) ?></td>
                                     <td><?= htmlspecialchars($plan['treatment_name']) ?></td>
@@ -451,7 +458,10 @@ $db->close();
                                     </td>
                                     <td>Rs <?= number_format($plan['total_cost'], 2) ?></td>
                                     <td>
-                                        <?php if ($plan['has_treatment_form'] > 0 && $hasNewConfirmedSessions && $assignedToMe): ?>
+                                        <?php if (!$isToday): ?>
+                                            <button class="btn-start" disabled style="opacity:0.5;cursor:not-allowed;" title="No session scheduled for today">Start Treatment</button>
+                                            <span style="display:block;font-size:11px;color:#888;margin-top:4px;">Not today</span>
+                                        <?php elseif ($plan['has_treatment_form'] > 0 && $hasNewConfirmedSessions && $assignedToMe): ?>
                                             <button class="btn-start" onclick="window.location.href='stafftreatmentform.php?plan_id=<?= htmlspecialchars($plan['plan_id']) ?>'">Start Treatment</button>
                                         <?php elseif ($plan['has_treatment_form'] > 0): ?>
                                             <?php if ($assignedToMe): ?>
@@ -460,9 +470,6 @@ $db->close();
                                                 <button class="btn-start" disabled style="opacity:0.5;cursor:not-allowed;" title="Selected by another staff">View</button>
                                                 <span style="display:block;font-size:11px;color:#6c757d;margin-top:4px;">Selected by staff #<?= $tpAssignedId ?></span>
                                             <?php endif; ?>
-                                        <?php elseif (!$tpPay): ?>
-                                            <button class="btn-start" disabled style="opacity:0.5;cursor:not-allowed;" title="Patient has not paid yet">Start Treatment</button>
-                                            <span style="display:block;font-size:11px;color:#dc3545;margin-top:4px;">Payment pending</span>
                                         <?php elseif (!$tpConfirmed): ?>
                                             <button class="btn-start" disabled style="opacity:0.5;cursor:not-allowed;" title="Patient has not confirmed the plan">Start Treatment</button>
                                             <span style="display:block;font-size:11px;color:#856404;margin-top:4px;">Awaiting patient confirmation</span>
@@ -528,6 +535,18 @@ $db->close();
                     location.reload();
                 } else {
                     alert('Error cancelling treatment plan');
+                }
+            });
+        }
+
+        function filterTreatments(tab, btn) {
+            document.querySelectorAll('.tab-btn-treat').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.querySelectorAll('.treatment-row').forEach(function(row) {
+                if (tab === 'today') {
+                    row.style.display = row.dataset.today === 'true' ? '' : 'none';
+                } else {
+                    row.style.display = '';
                 }
             });
         }
@@ -673,6 +692,22 @@ $db->close();
         .status-cancelled {
             background-color: #f8d7da;
             color: #721c24;
+        }
+
+        .tab-btn-treat {
+            background: #f0f0f0;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            margin-right: 8px;
+            color: #555;
+        }
+        .tab-btn-treat.active {
+            background: #E6A85A;
+            color: #fff;
         }
     </style>
 </body>

@@ -84,8 +84,6 @@ $stmt = $db->prepare("
         c.appointment_date,
         c.appointment_time,
         c.status,
-        c.payment_status,
-        c.payment_method,
         c.notes as reason
     FROM consultations c
     LEFT JOIN patients p ON c.patient_id = p.id
@@ -235,6 +233,7 @@ foreach ($treatment_plans as $plan) {
 
         <div class="tab-container">
             <button class="tab-btn active" data-tab="all">All Appointments</button>
+            <button class="tab-btn" data-tab="today">Today's Appointments</button>
             <button class="tab-btn" data-tab="upcoming">Upcoming Appointments</button>
             <button class="tab-btn" data-tab="completed">Completed Appointments</button>
             <button class="tab-btn" data-tab="cancelled">Cancelled Appointments</button>
@@ -267,7 +266,8 @@ foreach ($treatment_plans as $plan) {
                                     $status = $apt['status'];
                                 }
                             ?>
-                            <tr class="appointment-row <?= strtolower($status) ?>" data-status="<?= strtolower($status) ?>">
+                            <?php $isToday = ($apt['appointment_date'] === date('Y-m-d')); ?>
+                            <tr class="appointment-row <?= strtolower($status) ?>" data-status="<?= strtolower($status) ?>" data-today="<?= $isToday ? 'true' : 'false' ?>">
                                 <td><?= htmlspecialchars($apt['appointment_id']) ?></td>
                                 <td><?= htmlspecialchars($apt['patient_no'] ?? 'N/A') ?></td>
                                 <td><?= htmlspecialchars($apt['patient_name']) ?></td>
@@ -277,11 +277,11 @@ foreach ($treatment_plans as $plan) {
                                 </td>
                                 <td class="actions">
                                     <?php if ($status === 'Upcoming') : ?>
-                                        <?php if (($apt['payment_status'] ?? '') === 'Completed'): ?>
+                                        <?php if ($isToday): ?>
                                             <button class="btn-start" onclick="window.location.href='doctorconsultform.php?appointment_id=<?= htmlspecialchars($apt['appointment_id']) ?>'">Start Consultation</button>
                                         <?php else: ?>
-                                            <button class="btn-start" disabled style="opacity:0.5;cursor:not-allowed;" title="Patient has not paid yet">Start Consultation</button>
-                                            <span style="display:block;font-size:11px;color:#dc3545;margin-top:4px;">Payment pending</span>
+                                            <button class="btn-start" disabled style="opacity:0.5;cursor:not-allowed;" title="Only today's appointments can be started">Start Consultation</button>
+                                            <span style="display:block;font-size:11px;color:#888;margin-top:4px;">Not today</span>
                                         <?php endif; ?>
                                         <button class="btn-cancel" onclick="showCancelReason(<?= $apt['appointment_id'] ?>)">Cancel</button>
                                         <button class="btn-cancel" style="background:#6c757d;" onclick="markDayUnavailable('<?= htmlspecialchars($apt['appointment_date']) ?>')">Cancel Day</button>
@@ -708,7 +708,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const name = r.cells[2].textContent.toLowerCase();
             const num = r.cells[1].textContent.toLowerCase();
             const status = r.dataset.status;
-            return (tab === 'all' || status === tab) && (name.includes(term) || num.includes(term));
+            const isToday = r.dataset.today === 'true';
+            const matchSearch = name.includes(term) || num.includes(term);
+            if (tab === 'today') return isToday && status === 'upcoming' && matchSearch;
+            return (tab === 'all' || status === tab) && matchSearch;
         });
         currentPage = 1;
         showPage(1);
