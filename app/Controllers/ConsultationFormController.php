@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $upd->close();
         } else {
             $ins = $db->prepare("INSERT INTO consultationforms (appointment_id, patient_id, patient_no, first_name, last_name, age, gender, diagnosis, personal_products, recommended_treatment, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
-            $ins->bind_param('iississssss', $appointment_id, $patient_id, $patient_no, $first_name, $last_name, $age, $gender, $diagnosis, $personal_products, $recommended_treatment, $notes);
+            $ins->bind_param('iisssisssss', $appointment_id, $patient_id, $patient_no, $first_name, $last_name, $age, $gender, $diagnosis, $personal_products, $recommended_treatment, $notes);
             if (!$ins->execute()) throw new Exception('Failed inserting consultation form: ' . $ins->error);
             $ins->close();
         }

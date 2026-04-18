@@ -162,11 +162,11 @@ try {
 
         // Update product (preserving product_id)
         if ($final_image_path) {
-            $stmt = $db->prepare("UPDATE $table_name SET name = ?, price = ?, description = ?, image = ? WHERE product_id = ?");
-            $stmt->bind_param('sdssi', $product_name, $product_price, $product_description, $final_image_path, $product_id);
+            $stmt = $db->prepare("UPDATE $table_name SET name = ?, price = ?, description = ?, image = ?, product_type = ? WHERE product_id = ?");
+            $stmt->bind_param('sdsssi', $product_name, $product_price, $product_description, $final_image_path, $product_type, $product_id);
         } else {
-            $stmt = $db->prepare("UPDATE $table_name SET name = ?, price = ?, description = ? WHERE product_id = ?");
-            $stmt->bind_param('sdsi', $product_name, $product_price, $product_description, $product_id);
+            $stmt = $db->prepare("UPDATE $table_name SET name = ?, price = ?, description = ?, product_type = ? WHERE product_id = ?");
+            $stmt->bind_param('sdssi', $product_name, $product_price, $product_description, $product_type, $product_id);
         }
         
         if ($stmt->execute()) {
@@ -215,8 +215,8 @@ try {
         }
 
         // Insert into appropriate table
-        $stmt = $db->prepare("INSERT INTO $table_name (product_id, name, price, description, image) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param('isdss', $nextId, $product_name, $product_price, $product_description, $image_path);
+        $stmt = $db->prepare("INSERT INTO $table_name (product_id, name, price, description, image, product_type) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param('isdsss', $nextId, $product_name, $product_price, $product_description, $image_path, $product_type);
 
         if ($stmt->execute()) {
             $stmt->close();

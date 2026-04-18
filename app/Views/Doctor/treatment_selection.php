@@ -33,8 +33,8 @@ try {
 $appointment_id = $_GET['appointment_id'] ?? '';
 $patient_id = $_GET['patient_id'] ?? '';
 
-// Determine the minimum selectable treatment date (day after the consultation date)
-$min_treatment_date = date('Y-m-d', strtotime('+1 day')); // fallback: tomorrow
+// Determine the minimum selectable treatment date (same day as or after the consultation date)
+$min_treatment_date = date('Y-m-d'); // fallback: today
 if ($appointment_id) {
     try {
         $db2 = isset($db) ? $db : (class_exists('\\Core\\Database') ? \Core\Database::connect() : null);
@@ -46,7 +46,7 @@ if ($appointment_id) {
                 $drow = $dstmt->get_result()->fetch_assoc();
                 $dstmt->close();
                 if ($drow && !empty($drow['appointment_date'])) {
-                    $min_treatment_date = date('Y-m-d', strtotime($drow['appointment_date'] . ' +1 day'));
+                    $min_treatment_date = date('Y-m-d', strtotime($drow['appointment_date']));
                 }
             }
         }
@@ -97,7 +97,7 @@ if ($appointment_id) {
         </div>
 
         <div class="field">
-            <label class="hint">Treatment Date <span style="color:#888;font-size:12px;">(must be after consultation date)</span></label>
+            <label class="hint">Treatment Date <span style="color:#888;font-size:12px;">(must be on or after consultation date)</span></label>
             <input type="date" id="treatment_date" />
         </div>
 
@@ -132,7 +132,7 @@ if ($appointment_id) {
         document.getElementById('treatment_price_display').textContent = 'Rs ' + price.toFixed(2);
     }
 
-    // min date = day after consultation date
+    // min date = consultation date (same day allowed)
     (function setMinDate(){
         const minDate = '<?= $min_treatment_date ?>';
         dateInput.min = minDate;

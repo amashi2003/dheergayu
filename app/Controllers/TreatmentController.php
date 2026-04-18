@@ -196,15 +196,22 @@ try {
         }
         
         if ($stmt->execute()) {
-            $affected_rows = $stmt->affected_rows;
             $stmt->close();
-            $db->close();
-            
-            if ($affected_rows > 0) {
-                echo json_encode(['success' => true, 'message' => 'Treatment updated successfully']);
-            } else {
-                echo json_encode(['success' => false, 'message' => 'No treatment found with the given ID']);
+
+            // Replace oils for this treatment
+            $db->query("DELETE FROM treatment_products WHERE treatment_id = $treatment_id");
+            $oilIds = $_POST['oil_product_id'] ?? [];
+            $oilStmt = $db->prepare("INSERT INTO treatment_products (treatment_id, product_id, quantity_per_session) VALUES (?, ?, 1)");
+            foreach ($oilIds as $pid) {
+                $pid = (int)$pid;
+                if ($pid > 0) {
+                    $oilStmt->bind_param('ii', $treatment_id, $pid);
+                    $oilStmt->execute();
+                }
             }
+            $oilStmt->close();
+            $db->close();
+            echo json_encode(['success' => true, 'message' => 'Treatment updated successfully']);
         } else {
             throw new Exception("Failed to execute update query: " . $stmt->error);
         }
@@ -233,6 +240,18 @@ try {
 
         if ($stmt->execute()) {
             $stmt->close();
+
+            // Insert oils for this treatment
+            $oilIds = $_POST['oil_product_id'] ?? [];
+            $oilStmt = $db->prepare("INSERT INTO treatment_products (treatment_id, product_id, quantity_per_session) VALUES (?, ?, 1)");
+            foreach ($oilIds as $pid) {
+                $pid = (int)$pid;
+                if ($pid > 0) {
+                    $oilStmt->bind_param('ii', $nextId, $pid);
+                    $oilStmt->execute();
+                }
+            }
+            $oilStmt->close();
             $db->close();
             echo json_encode(['success' => true, 'message' => 'Treatment created successfully']);
         } else {

@@ -24,8 +24,8 @@ try {
         }
         $selected = DateTime::createFromFormat('Y-m-d', $date);
         $today = new DateTime('today');
-        if (!$selected || $selected <= $today) {
-            echo json_encode(['success' => false, 'message' => 'Date must be in the future']);
+        if (!$selected || $selected < $today) {
+            echo json_encode(['success' => false, 'message' => 'Date must be today or in the future']);
             exit;
         }
         $slots = $model->getAvailableSlots($treatmentId, $date);
@@ -48,8 +48,8 @@ try {
         }
         $selected = DateTime::createFromFormat('Y-m-d', $date);
         $today = new DateTime('today');
-        if (!$selected || $selected <= $today) {
-            echo json_encode(['success' => false, 'message' => 'Date must be in the future']);
+        if (!$selected || $selected < $today) {
+            echo json_encode(['success' => false, 'message' => 'Date must be today or in the future']);
             exit;
         }
 

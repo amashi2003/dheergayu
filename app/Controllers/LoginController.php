@@ -65,11 +65,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
             
         case 'staff':
-            header('Location: /dheergayu/app/Views/Staff/staffdashboard.php');
+            header('Location: /dheergayu/app/Views/Staff/stafftreatment.php');
             exit;
-            
+
         case 'pharmacist':
-            header('Location: /dheergayu/app/Views/Pharmacist/pharmacistdashboard.php');
+            header('Location: /dheergayu/app/Views/Pharmacist/pharmacisthome.php');
             exit;
         case 'admin':
             header('Location: /dheergayu/app/Views/Admin/admindashboard.php');
