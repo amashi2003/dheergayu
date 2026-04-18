@@ -39,11 +39,43 @@ function getDbConnection() {
     return $conn;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'mark_complete') {
+    try {
+        $db = getDbConnection();
+        $plan_id = intval($_POST['plan_id'] ?? 0);
+        $staff_id = intval($_SESSION['user_id'] ?? 0);
+        if (!$plan_id || !$staff_id) { echo json_encode(['status' => 'error', 'message' => 'Invalid request']); exit; }
+        $chk = $db->prepare("SELECT assigned_staff_id, status FROM treatment_plans WHERE plan_id = ? LIMIT 1");
+        $chk->bind_param('i', $plan_id);
+        $chk->execute();
+        $row = $chk->get_result()->fetch_assoc();
+        $chk->close();
+        if (!$row) { echo json_encode(['status' => 'error', 'message' => 'Plan not found']); exit; }
+        if ((int)$row['assigned_staff_id'] !== $staff_id) { echo json_encode(['status' => 'error', 'message' => 'Not assigned to you']); exit; }
+
+        $pendingSessions = $db->prepare("SELECT COUNT(*) AS cnt FROM treatment_sessions WHERE plan_id = ? AND status != 'Completed'");
+        $pendingSessions->bind_param('i', $plan_id);
+        $pendingSessions->execute();
+        $pendingRow = $pendingSessions->get_result()->fetch_assoc();
+        $pendingSessions->close();
+        if ((int)($pendingRow['cnt'] ?? 0) > 0) {
+            echo json_encode(['status' => 'error', 'message' => 'Treatments are not completed yet.']);
+            exit;
+        }
+
+        $db->query("UPDATE treatment_plans SET status = 'Completed' WHERE plan_id = " . $plan_id);
+        echo json_encode(['status' => 'success', 'message' => 'Treatment marked as completed']);
+    } catch (Exception $e) {
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    }
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $db = getDbConnection();
         $db->begin_transaction();
-        
+
         // Get and validate form data
         $plan_id = intval($_POST['plan_id'] ?? 0);
         $staff_id = intval($_SESSION['user_id'] ?? 0);
@@ -69,6 +101,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $gPay = ($gRow['payment_status'] ?? '') === 'Completed';
         $gSt = $gRow['status'] ?? '';
         $gChg = !empty($gRow['change_requested']);
+        if ($gSt === 'Completed') {
+            throw new Exception("Treatment is already completed and cannot be edited.");
+        }
         $gOk = $gPay && !$gChg && in_array($gSt, ['Confirmed', 'InProgress', 'Completed'], true);
         if (!$gOk) {
             throw new Exception("Treatment cannot be saved until the patient has paid and confirmed the plan.");
@@ -153,27 +188,8 @@ $update_stmt->bind_param('sii', $therapist_name, $plan_id, $staff_id);
             }
             // ── End session notes ───────────────────────────────────────
 
-            // If all sessions are completed, mark plan as Completed.
-            $cnt = $db->prepare("SELECT COUNT(*) AS done FROM treatment_sessions WHERE plan_id = ? AND status = 'Completed'");
-            $cnt->bind_param('i', $plan_id);
-            $cnt->execute();
-            $doneRow = $cnt->get_result()->fetch_assoc();
-            $cnt->close();
-            $done = (int)($doneRow['done'] ?? 0);
-            if ($done > 0) {
-                $tot = $db->prepare("SELECT COUNT(*) AS total FROM treatment_sessions WHERE plan_id = ?");
-                $tot->bind_param('i', $plan_id);
-                $tot->execute();
-                $totRow = $tot->get_result()->fetch_assoc();
-                $tot->close();
-                $totalSessions = (int)($totRow['total'] ?? 0);
-                if ($totalSessions > 0 && $done >= $totalSessions) {
-                    $db->query("UPDATE treatment_plans SET status = 'Completed' WHERE plan_id = " . (int)$plan_id);
-                } elseif ($done > 0) {
-                    // Ensure at least InProgress once staff starts completing sessions
-                    $db->query("UPDATE treatment_plans SET status = 'InProgress' WHERE plan_id = " . (int)$plan_id . " AND status != 'Completed'");
-                }
-            }
+            // Mark plan as InProgress once staff starts completing sessions (never auto-complete)
+            $db->query("UPDATE treatment_plans SET status = 'InProgress' WHERE plan_id = " . (int)$plan_id . " AND status NOT IN ('Completed', 'InProgress')");
 
             $db->commit();
 
@@ -235,29 +251,11 @@ foreach ($session_notes_input as $session_num => $note) {
     }
 }
 
-            // If all sessions are completed, mark plan as Completed.
-            $cnt = $db->prepare("SELECT COUNT(*) AS done FROM treatment_sessions WHERE plan_id = ? AND status = 'Completed'");
-            $cnt->bind_param('i', $plan_id);
-            $cnt->execute();
-            $doneRow = $cnt->get_result()->fetch_assoc();
-            $cnt->close();
-            $done = (int)($doneRow['done'] ?? 0);
-            if ($done > 0) {
-                $tot = $db->prepare("SELECT COUNT(*) AS total FROM treatment_sessions WHERE plan_id = ?");
-                $tot->bind_param('i', $plan_id);
-                $tot->execute();
-                $totRow = $tot->get_result()->fetch_assoc();
-                $tot->close();
-                $totalSessions = (int)($totRow['total'] ?? 0);
-                if ($totalSessions > 0 && $done >= $totalSessions) {
-                    $db->query("UPDATE treatment_plans SET status = 'Completed' WHERE plan_id = " . (int)$plan_id);
-                } elseif ($done > 0) {
-                    $db->query("UPDATE treatment_plans SET status = 'InProgress' WHERE plan_id = " . (int)$plan_id . " AND status != 'Completed'");
-                }
-            }
+            // Mark plan as InProgress once staff starts completing sessions (never auto-complete)
+            $db->query("UPDATE treatment_plans SET status = 'InProgress' WHERE plan_id = " . (int)$plan_id . " AND status NOT IN ('Completed', 'InProgress')");
 
             $db->commit();
-            
+
             echo json_encode([
                 'status' => 'success',
                 'message' => 'Treatment form saved successfully'

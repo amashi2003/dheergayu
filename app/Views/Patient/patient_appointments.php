@@ -567,9 +567,8 @@ $treatmentPlansTabCount = count($treatment_plans);
                                                 ? strtotime($firstSessionDate . ' ' . $firstSessionTime)
                                                 : 0;
                                             $now = time();
-                                            $hoursLeft = $firstTs > 0 ? ($firstTs - $now) / 3600 : 999;
                                             $sessionPassed = $firstTs > 0 && $firstTs < $now;
-                                            $deadlinePassed = $hoursLeft < 24; // less than 24h to first session
+                                            $deadlinePassed = false;
                                         ?>
                                         <div class="appointment-actions" style="margin-top:20px;background:<?= $deadlinePassed ? '#fde8e8' : '#fff3cd' ?>;padding:12px;border-radius:8px;">
 
@@ -577,13 +576,9 @@ $treatmentPlansTabCount = count($treatment_plans);
                                                 <p style="margin:0 0 12px 0;font-size:14px;color:#c0392b;">
                                                     ❌ Your first session date has passed. Please reschedule before paying.
                                                 </p>
-                                            <?php elseif ($deadlinePassed): ?>
-                                                <p style="margin:0 0 12px 0;font-size:14px;color:#c0392b;">
-                                                    ⚠️ Payment deadline passed — first session is in less than 24 hours. Please reschedule before paying.
-                                                </p>
                                             <?php else: ?>
                                                 <p style="margin:0 0 12px 0;font-size:14px;color:#856404;">
-                                                    ⚠️ Payment must be completed at least <strong>24 hours before</strong> your first session
+                                                    ⚠️ Please confirm and pay before your first session
                                                     (<?= $firstSessionDate ? date('M d, Y', strtotime($firstSessionDate)) : '' ?>).
                                                 </p>
                                             <?php endif; ?>

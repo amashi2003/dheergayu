@@ -12,18 +12,27 @@ $price = '';
 $status = '';
 $currentImage = '';
 
-if ($treatmentId > 0) {
-    // Fetch treatment data from database
-    $db = $conn;
-    if (!$db->connect_error) {
+$treatmentOils = [];
+$existingOils = [];
+
+$db = $conn;
+if (!$db->connect_error) {
+    // Fetch all treatment oils for the dropdown
+    $oilsResult = $db->query("SELECT product_id, name FROM products WHERE product_type = 'treatment' ORDER BY name");
+    if ($oilsResult) {
+        while ($row = $oilsResult->fetch_assoc()) {
+            $treatmentOils[] = $row;
+        }
+    }
+
+    if ($treatmentId > 0) {
         $stmt = $db->prepare("SELECT treatment_id, treatment_name, description, duration, price, image, status FROM treatment_list WHERE treatment_id = ?");
         $stmt->bind_param('i', $treatmentId);
         $stmt->execute();
         $result = $stmt->get_result();
         $treatment = $result->fetch_assoc();
         $stmt->close();
-        $db->close();
-        
+
         if ($treatment) {
             $treatmentName = $treatment['treatment_name'] ?? '';
             $description = $treatment['description'] ?? '';
@@ -32,7 +41,19 @@ if ($treatmentId > 0) {
             $status = $treatment['status'] ?? '';
             $currentImage = $treatment['image'] ?? '';
         }
+
+        // Fetch existing oils for this treatment
+        $oilStmt = $db->prepare("SELECT tp.product_id, p.name, tp.quantity_per_session FROM treatment_products tp JOIN products p ON p.product_id = tp.product_id WHERE tp.treatment_id = ?");
+        $oilStmt->bind_param('i', $treatmentId);
+        $oilStmt->execute();
+        $oilResult = $oilStmt->get_result();
+        while ($row = $oilResult->fetch_assoc()) {
+            $existingOils[] = $row;
+        }
+        $oilStmt->close();
     }
+
+    $db->close();
 }
 ?>
 
@@ -85,11 +106,61 @@ if ($treatmentId > 0) {
                 <option value="Inactive" <?= $status === 'Inactive' ? 'selected' : '' ?>>Inactive</option>
             </select>
 
+            <div style="margin-top: 1.5rem;">
+                <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Treatment Oils <span style="font-weight:400; color:#888; font-size:0.85rem;">(oils used per session)</span></label>
+                <div id="oils-container">
+                    <?php if (!empty($existingOils)): ?>
+                        <?php foreach ($existingOils as $oil): ?>
+                        <div class="oil-row" style="display:flex; gap:0.5rem; margin-bottom:0.5rem; align-items:center;">
+                            <select name="oil_product_id[]" style="flex:1; padding:0.5rem; border:1px solid #ddd; border-radius:6px;">
+                                <option value="">-- Select Oil --</option>
+                                <?php foreach ($treatmentOils as $o): ?>
+                                    <option value="<?= $o['product_id'] ?>" <?= $o['product_id'] == $oil['product_id'] ? 'selected' : '' ?>><?= htmlspecialchars($o['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button type="button" onclick="this.closest('.oil-row').remove()" style="background:#e74c3c; color:#fff; border:none; border-radius:6px; padding:0.5rem 0.8rem; cursor:pointer;">✕</button>
+                        </div>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <div class="oil-row" style="display:flex; gap:0.5rem; margin-bottom:0.5rem; align-items:center;">
+                            <select name="oil_product_id[]" style="flex:1; padding:0.5rem; border:1px solid #ddd; border-radius:6px;">
+                                <option value="">-- Select Oil --</option>
+                                <?php foreach ($treatmentOils as $o): ?>
+                                    <option value="<?= $o['product_id'] ?>"><?= htmlspecialchars($o['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button type="button" onclick="this.closest('.oil-row').remove()" style="background:#e74c3c; color:#fff; border:none; border-radius:6px; padding:0.5rem 0.8rem; cursor:pointer;">✕</button>
+                        </div>
+                    <?php endif; ?>
+                </div>
+                <button type="button" id="add-oil-btn" style="margin-top:0.4rem; background:#5b8a6e; color:#fff; border:none; border-radius:6px; padding:0.4rem 1rem; cursor:pointer; font-size:0.9rem;">+ Add Oil</button>
+            </div>
+
             <div class="form-buttons">
                 <button type="button" onclick="window.history.back();" class="cancel-btn">Cancel</button>
                 <button type="submit" class="submit-btn"><?= $treatmentId ? 'Save Changes' : 'Add Treatment' ?></button>
             </div>
         </form>
+
+        <script>
+        const treatmentOils = <?= json_encode($treatmentOils) ?>;
+
+        document.getElementById('add-oil-btn').addEventListener('click', function() {
+            const container = document.getElementById('oils-container');
+            const row = document.createElement('div');
+            row.className = 'oil-row';
+            row.style = 'display:flex; gap:0.5rem; margin-bottom:0.5rem; align-items:center;';
+            let options = '<option value="">-- Select Oil --</option>';
+            treatmentOils.forEach(o => {
+                options += `<option value="${o.product_id}">${o.name}</option>`;
+            });
+            row.innerHTML = `
+                <select name="oil_product_id[]" style="flex:1; padding:0.5rem; border:1px solid #ddd; border-radius:6px;">${options}</select>
+                <button type="button" onclick="this.closest('.oil-row').remove()" style="background:#e74c3c; color:#fff; border:none; border-radius:6px; padding:0.5rem 0.8rem; cursor:pointer;">✕</button>
+            `;
+            container.appendChild(row);
+        });
+        </script>
     </div>
     <script>
     // Image preview functionality

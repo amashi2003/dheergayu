@@ -28,7 +28,7 @@ if (strtotime($session_date) < strtotime('today')) {
 $staff_id = (int)$_SESSION['user_id'];
 
 // Verify staff is assigned to this plan
-$chk = $conn->prepare("SELECT plan_id, patient_id, assigned_staff_id FROM treatment_plans WHERE plan_id = ? LIMIT 1");
+$chk = $conn->prepare("SELECT plan_id, patient_id, assigned_staff_id, status FROM treatment_plans WHERE plan_id = ? LIMIT 1");
 $chk->bind_param('i', $plan_id);
 $chk->execute();
 $plan = $chk->get_result()->fetch_assoc();
@@ -40,6 +40,10 @@ if (!$plan) {
 }
 if ((int)$plan['assigned_staff_id'] !== $staff_id) {
     echo json_encode(['success' => false, 'error' => 'You are not assigned to this plan']);
+    exit;
+}
+if (($plan['status'] ?? '') === 'Completed') {
+    echo json_encode(['success' => false, 'error' => 'This treatment is already completed and cannot be modified']);
     exit;
 }
 
@@ -75,6 +79,9 @@ if (!$ins->execute()) {
     exit;
 }
 $ins->close();
+
+// Reopen the plan so staff can still mark it complete after this new session
+$conn->query("UPDATE treatment_plans SET status = 'InProgress' WHERE plan_id = $plan_id AND status = 'Completed'");
 
 echo json_encode([
     'success'        => true,

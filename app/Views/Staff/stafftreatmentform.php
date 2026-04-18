@@ -95,6 +95,11 @@ if ($plan_id) {
         exit;
     }
 
+    if (($treatment_plan['status'] ?? '') === 'Completed') {
+        echo "<script>alert('This treatment is already completed and cannot be edited.'); window.location.href='stafftreatment.php';</script>";
+        exit;
+    }
+
     $allowViewSaved = $view_mode && !empty($existing_form);
     if (!$allowViewSaved && (!$tpPay || !$tpConfirmed)) {
         $msg = 'Cannot open treatment — patient must complete payment and confirm the treatment plan.';

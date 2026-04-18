@@ -8,9 +8,29 @@ if ($db->connect_error) {
     die("Connection failed: " . $db->connect_error);
 }
 
+// Fetch all staff users
+$staffUsers = [];
+$staffResult = $db->query("SELECT id, CONCAT(first_name, ' ', last_name) AS name FROM users WHERE role = 'staff' ORDER BY first_name");
+if ($staffResult) {
+    while ($row = $staffResult->fetch_assoc()) $staffUsers[] = $row;
+}
+
+// Fetch staff assignments per treatment
+$staffAssignments = [];
+$saResult = $db->query("SELECT ts.treatment_id, tl.treatment_name,
+    ts.primary_staff1_id, CONCAT(u1.first_name,' ',u1.last_name) AS staff1_name,
+    ts.primary_staff2_id, CONCAT(u2.first_name,' ',u2.last_name) AS staff2_name
+    FROM treatment_staff ts
+    JOIN treatment_list tl ON tl.treatment_id = ts.treatment_id
+    LEFT JOIN users u1 ON u1.id = ts.primary_staff1_id
+    LEFT JOIN users u2 ON u2.id = ts.primary_staff2_id");
+if ($saResult) {
+    while ($row = $saResult->fetch_assoc()) $staffAssignments[$row['treatment_id']] = $row;
+}
+
 // Fetch all treatments from treatment_list table
-$query = "SELECT treatment_id, treatment_name, description, duration, price, image, status 
-          FROM treatment_list 
+$query = "SELECT treatment_id, treatment_name, description, duration, price, image, status
+          FROM treatment_list
           ORDER BY treatment_id";
 $result = $db->query($query);
 
@@ -26,6 +46,16 @@ if ($result && $result->num_rows > 0) {
             'status' => $row['status'],
             'image' => $row['image'] ?? '/dheergayu/public/assets/images/Admin/health-treatments.jpg'
         ];
+    }
+}
+
+// Fetch oils for all treatments
+$treatmentOilsMap = [];
+$oilsQuery = "SELECT tp.treatment_id, p.name FROM treatment_products tp JOIN products p ON p.product_id = tp.product_id";
+$oilsResult = $db->query($oilsQuery);
+if ($oilsResult) {
+    while ($row = $oilsResult->fetch_assoc()) {
+        $treatmentOilsMap[$row['treatment_id']][] = $row['name'];
     }
 }
 
@@ -148,11 +178,17 @@ $db->close();
             </div>
         </div>
 
+        <!-- Tab Navigation -->
+        <div style="display:flex; gap:0; margin-bottom:1.5rem; border-bottom:2px solid #e0d5c8;">
+            <button class="admin-tab-btn active" onclick="switchAdminTab('treatments', this)" style="padding:0.6rem 1.4rem; border:none; border-radius:8px 8px 0 0; background:#f0ece6; color:#555; font-size:0.95rem; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; position:relative; bottom:-2px; transition:all 0.2s;">Treatments</button>
+            <button class="admin-tab-btn" onclick="switchAdminTab('staff-assign', this)" style="padding:0.6rem 1.4rem; border:none; border-radius:8px 8px 0 0; background:#f0ece6; color:#555; font-size:0.95rem; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; position:relative; bottom:-2px; transition:all 0.2s; margin-left:4px;">Staff Assignments</button>
+        </div>
+
+        <div id="tab-treatments">
         <!-- Add New Treatment Button -->
         <div class="add-treatment-section">
             <a href="addnewtreatment.php" class="btn btn-add">+ Add New Treatment</a>
         </div>
-
 
         <!-- Treatments Table -->
         <div class="treatments-table-container">
@@ -162,6 +198,7 @@ $db->close();
                         <th>Image</th>
                         <th>Treatment Name</th>
                         <th>Description</th>
+                        <th>Oils Used</th>
                         <th>Duration</th>
                         <th>Price</th>
                         <th>Status</th>
@@ -191,6 +228,16 @@ $db->close();
                                     </div>
                                 </td>
                                 <td class="treatment-description"><?= htmlspecialchars($treatment['description']) ?></td>
+                                <td class="treatment-oils">
+                                    <?php $oils = $treatmentOilsMap[$treatment['id']] ?? []; ?>
+                                    <?php if (!empty($oils)): ?>
+                                        <?php foreach ($oils as $oil): ?>
+                                            <span style="display:inline-block; background:#e8f5ee; color:#5b8a6e; border-radius:12px; padding:2px 8px; font-size:0.78rem; margin:2px;"><?= htmlspecialchars($oil) ?></span>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <span style="color:#aaa; font-size:0.85rem;">None</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td class="duration"><?= htmlspecialchars($treatment['duration']) ?></td>
                                 <td class="price">Rs. <?= htmlspecialchars($treatment['price']) ?></td>
                                 <td class="status">
@@ -217,6 +264,66 @@ $db->close();
                     <?php endif; ?>
                 </tbody>
             </table>
+        </div><!-- end treatments table container -->
+        </div><!-- end tab-treatments -->
+
+        <!-- Staff Assignments Tab -->
+        <div id="tab-staff-assign" style="display:none;">
+            <table class="treatments-table">
+                <thead>
+                    <tr>
+                        <th>Treatment</th>
+                        <th>Primary Therapist 1</th>
+                        <th>Primary Therapist 2</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($treatments as $t): ?>
+                    <?php $sa = $staffAssignments[$t['id']] ?? null; ?>
+                    <tr>
+                        <td><strong><?= htmlspecialchars($t['name']) ?></strong></td>
+                        <td><?= $sa ? htmlspecialchars($sa['staff1_name']) : '<span style="color:#aaa;">Unassigned</span>' ?></td>
+                        <td><?= $sa ? htmlspecialchars($sa['staff2_name']) : '<span style="color:#aaa;">Unassigned</span>' ?></td>
+                        <td>
+                            <button class="action-btn edit-btn" onclick="openAssignModal(<?= $t['id'] ?>, '<?= htmlspecialchars($t['name']) ?>', <?= $sa['primary_staff1_id'] ?? 0 ?>, <?= $sa['primary_staff2_id'] ?? 0 ?>)">
+                                <?= $sa ? 'Edit' : 'Assign' ?>
+                            </button>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Assign Modal -->
+        <div id="assignModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+            <div style="background:#fff; border-radius:12px; padding:2rem; width:420px; max-width:95%;">
+                <h3 id="assignModalTitle" style="margin-bottom:1.2rem; color:#5c3d1e;">Assign Staff</h3>
+                <input type="hidden" id="assign_treatment_id">
+                <div style="margin-bottom:1rem;">
+                    <label style="font-weight:600; display:block; margin-bottom:0.4rem;">Primary Therapist 1</label>
+                    <select id="assign_staff1" style="width:100%; padding:0.6rem; border:1px solid #ddd; border-radius:6px;">
+                        <option value="0">-- Unassigned --</option>
+                        <?php foreach ($staffUsers as $s): ?>
+                        <option value="<?= $s['id'] ?>"><?= htmlspecialchars($s['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div style="margin-bottom:1.5rem;">
+                    <label style="font-weight:600; display:block; margin-bottom:0.4rem;">Primary Therapist 2</label>
+                    <select id="assign_staff2" style="width:100%; padding:0.6rem; border:1px solid #ddd; border-radius:6px;">
+                        <option value="0">-- Unassigned --</option>
+                        <?php foreach ($staffUsers as $s): ?>
+                        <option value="<?= $s['id'] ?>"><?= htmlspecialchars($s['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div style="display:flex; gap:0.8rem; justify-content:flex-end;">
+                    <button onclick="closeAssignModal()" style="padding:0.5rem 1.2rem; border:1px solid #ddd; border-radius:6px; background:#fff; cursor:pointer;">Cancel</button>
+                    <button onclick="saveAssignment()" style="padding:0.5rem 1.2rem; border:none; border-radius:6px; background:#8B7355; color:#fff; font-weight:600; cursor:pointer;">Save</button>
+                </div>
+            </div>
         </div>
 
     </main>
@@ -349,6 +456,52 @@ $db->close();
             }
         }
 
+        function switchAdminTab(tab, btn) {
+            document.getElementById('tab-treatments').style.display = tab === 'treatments' ? '' : 'none';
+            document.getElementById('tab-staff-assign').style.display = tab === 'staff-assign' ? '' : 'none';
+            document.querySelectorAll('.admin-tab-btn').forEach(b => {
+                b.style.background = '#f0ece6';
+                b.style.color = '#555';
+                b.style.borderBottom = '2px solid transparent';
+            });
+            btn.style.background = 'white';
+            btn.style.color = '#8B7355';
+            btn.style.borderBottom = '2px solid white';
+        }
+
+        function openAssignModal(treatmentId, treatmentName, staff1Id, staff2Id) {
+            document.getElementById('assign_treatment_id').value = treatmentId;
+            document.getElementById('assignModalTitle').textContent = 'Assign Staff — ' + treatmentName;
+            document.getElementById('assign_staff1').value = staff1Id || 0;
+            document.getElementById('assign_staff2').value = staff2Id || 0;
+            document.getElementById('assignModal').style.display = 'flex';
+        }
+
+        function closeAssignModal() {
+            document.getElementById('assignModal').style.display = 'none';
+        }
+
+        async function saveAssignment() {
+            const treatmentId = document.getElementById('assign_treatment_id').value;
+            const staff1 = document.getElementById('assign_staff1').value;
+            const staff2 = document.getElementById('assign_staff2').value;
+            const form = new FormData();
+            form.append('treatment_id', treatmentId);
+            form.append('staff1_id', staff1);
+            form.append('staff2_id', staff2);
+            try {
+                const res = await fetch('/dheergayu/public/api/treatment-staff-assign.php', { method: 'POST', body: form });
+                const data = await res.json();
+                if (data.success) {
+                    alert('✅ Staff assignment saved');
+                    location.reload();
+                } else {
+                    alert('❌ ' + (data.message || 'Failed to save'));
+                }
+            } catch (e) {
+                alert('❌ Error: ' + e.message);
+            }
+        }
     </script>
 </body>
 </html>

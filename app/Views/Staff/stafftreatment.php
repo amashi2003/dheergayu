@@ -129,6 +129,7 @@ $offers_stmt = $db->prepare("
     LEFT JOIN users u ON o.assigned_staff_id = u.id
     WHERE (o.primary_staff1_id = ? OR o.primary_staff2_id = ?)
       AND tp.payment_status = 'Completed'
+      AND (SELECT ts.session_date FROM treatment_sessions ts WHERE ts.plan_id = tp.plan_id ORDER BY ts.session_number ASC LIMIT 1) >= CURDATE()
     ORDER BY o.status ASC, o.created_at DESC
 ");
 if ($offers_stmt) {
@@ -441,7 +442,7 @@ $db->close();
                                     $tpConfirmed = in_array($tpStatus, ['Confirmed', 'InProgress', 'Completed'], true);
                                     $tpAssignedId = (int)($plan['assigned_staff_id'] ?? 0);
                                     $assignedToMe = $tpAssignedId !== 0 && $tpAssignedId === (int)$staffUserId;
-                                    $displayStatus = $tpStatus;
+                                    $displayStatus = ($tpStatus === 'Completed') ? 'Treatment Completed' : $tpStatus;
                                     $hasNewConfirmedSessions = (int)($plan['confirmed_sessions'] ?? 0) > 0;
                                     $isToday = (int)($plan['has_today_session'] ?? 0) > 0;
                                 ?>
@@ -458,11 +459,13 @@ $db->close();
                                     <td>
                                         <?php if ($tpStatus === 'Completed'): ?>
                                             <span class="completed-text">Treatment completed</span>
-                                        <?php elseif (!$isToday): ?>
-                                            <button class="btn-start" disabled style="opacity:0.5;cursor:not-allowed;" title="No session scheduled for today">Start Treatment</button>
-                                            <span style="display:block;font-size:11px;color:#888;margin-top:4px;">Not today</span>
                                         <?php elseif ($plan['has_treatment_form'] > 0 && $hasNewConfirmedSessions && $assignedToMe): ?>
-                                            <button class="btn-start" onclick="window.location.href='stafftreatmentform.php?plan_id=<?= htmlspecialchars($plan['plan_id']) ?>'">Start Treatment</button>
+                                            <?php if ($isToday): ?>
+                                                <button class="btn-start" onclick="window.location.href='stafftreatmentform.php?plan_id=<?= htmlspecialchars($plan['plan_id']) ?>'">Start Treatment</button>
+                                            <?php else: ?>
+                                                <button class="btn-start" disabled style="opacity:0.5;cursor:not-allowed;" title="No confirmed session scheduled for today">Start Treatment</button>
+                                                <span style="display:block;font-size:11px;color:#888;margin-top:4px;">Not today</span>
+                                            <?php endif; ?>
                                         <?php elseif ($plan['has_treatment_form'] > 0): ?>
                                             <?php if ($assignedToMe): ?>
                                                 <button class="action-btn complete-btn" onclick="viewStaffTreatmentForm(<?= $plan['plan_id'] ?>)">View</button>
@@ -479,7 +482,12 @@ $db->close();
                                         <?php else: ?>
                                             <button class="btn-start" onclick="window.location.href='stafftreatmentform.php?plan_id=<?= htmlspecialchars($plan['plan_id']) ?>'">Start Treatment</button>
                                         <?php endif; ?>
-                                        <button class="action-btn" style="margin-top:5px;background:#6c757d;" onclick="viewTreatmentPlan(<?= $plan['plan_id'] ?>)">View More Details</button>
+                                        <div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;">
+                                            <button class="action-btn" style="background:#6c757d;" onclick="viewTreatmentPlan(<?= $plan['plan_id'] ?>)">View More Details</button>
+                                            <?php if ($tpStatus !== 'Completed' && $assignedToMe && (int)($plan['has_treatment_form'] ?? 0) > 0): ?>
+                                                <button class="action-btn" style="background:#dc3545;" onclick="markTreatmentComplete(<?= (int)$plan['plan_id'] ?>)">Mark Treatment as Complete</button>
+                                            <?php endif; ?>
+                                        </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -553,6 +561,29 @@ $db->close();
 
         function viewStaffTreatmentForm(planId) {
             window.location.href = 'stafftreatmentform.php?plan_id=' + planId + '&view=1';
+        }
+
+        async function markTreatmentComplete(planId) {
+            if (!confirm('Mark this treatment as fully completed? You will not be able to edit this treatment form again.')) return;
+            const fd = new FormData();
+            fd.append('action', 'mark_complete');
+            fd.append('plan_id', planId);
+
+            try {
+                const resp = await fetch('/dheergayu/app/Controllers/StaffTreatmentFormController.php', {
+                    method: 'POST',
+                    body: fd
+                });
+                const data = await resp.json();
+                if (data.status === 'success') {
+                    alert('Treatment marked as completed.');
+                    location.reload();
+                } else {
+                    alert(data.message || 'Failed to complete treatment');
+                }
+            } catch (err) {
+                alert('Request failed: ' + (err.message || 'Network error'));
+            }
         }
 
         document.querySelectorAll('.btn-confirm-assign').forEach(function(btn) {

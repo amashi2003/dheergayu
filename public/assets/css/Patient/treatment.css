@@ -183,7 +183,7 @@ h2 {
 .card-wrapper {
     position: relative;
     width: 100%;
-    margin-bottom: 250px;
+    margin-bottom: 280px;
 }
 
 /* Card Image */
@@ -203,11 +203,11 @@ h2 {
 /* Floating Card - FIXED HEIGHT FOR ALIGNMENT */
 .floating-card {
     position: absolute;
-    bottom: -280px;
+    bottom: -310px;
     left: 50%;
     transform: translateX(-50%);
     width: 88%;
-    min-height: 330px; /* Fixed minimum height for consistency */
+    height: 370px;
     background-color: #ffffff;
     text-align: center;
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
@@ -215,6 +215,7 @@ h2 {
     flex-direction: column;
     z-index: 10;
     transition: all 0.3s ease;
+    overflow: hidden;
 }
 
 .card-wrapper:hover .floating-card {
@@ -418,9 +419,9 @@ h2 {
     }
 
     .floating-card {
-        bottom: -260px;
+        bottom: -290px;
         width: 90%;
-        min-height: 310px;
+        height: 350px;
     }
 }
 
@@ -448,9 +449,9 @@ h2 {
     }
 
     .floating-card {
-        bottom: -250px;
+        bottom: -280px;
         width: 92%;
-        min-height: 300px;
+        height: 340px;
     }
 
     .treatment-title {
@@ -497,9 +498,9 @@ h2 {
     }
 
     .floating-card {
-        bottom: -240px;
+        bottom: -270px;
         width: 94%;
-        min-height: 290px;
+        height: 330px;
     }
 
     .treatment-title {
