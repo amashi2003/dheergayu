@@ -118,7 +118,8 @@ $revenueProgress = $revenueTarget > 0
           <a href="adminpayments.php"        class="nav-btn">Payments</a>
           <a href="adminsuppliers.php"     class="nav-btn">Supplier-info</a>
           <a href="admincontact.php"       class="nav-btn">Contact Submissions</a>
-      </nav>
+              <a href="adminreports.php" class="nav-btn">Reports</a>
+        </nav>
       <div class="user-section">
           <div class="user-icon" id="user-icon">👤</div>
           <span class="user-role">Admin</span>
