@@ -171,6 +171,22 @@ $db->close();
             color: #666;
             font-size: 0.95rem;
         }
+        .inventory-search-wrap {
+            margin-bottom: 1rem;
+        }
+        .inventory-search-input {
+            width: 100%;
+            max-width: 420px;
+            padding: 0.65rem 0.9rem;
+            border: 1px solid #d8d8d8;
+            border-radius: 8px;
+            font-size: 0.95rem;
+        }
+        .inventory-search-input:focus {
+            outline: none;
+            border-color: #5b8a6e;
+            box-shadow: 0 0 0 3px rgba(91, 138, 110, 0.15);
+        }
     </style>
 </head>
 <body class="has-sidebar">
@@ -201,6 +217,16 @@ $db->close();
 
 <main class="main-content">
     <h2 class="section-title">Stock Management</h2>
+
+    <div class="inventory-search-wrap">
+        <input
+            type="text"
+            id="inventorySearchInput"
+            class="inventory-search-input"
+            placeholder="Search medicines and treatment oils by name..."
+            aria-label="Search inventory products"
+        >
+    </div>
 
     <!-- Tab Navigation -->
     <div class="inv-tab-nav">
@@ -338,6 +364,25 @@ function renderInventoryTable(array $items): string {
         document.querySelectorAll('.inv-tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById('inv-tab-' + tab).style.display = '';
         btn.classList.add('active');
+        applyInventorySearch();
+    }
+
+    function applyInventorySearch() {
+        const searchInput = document.getElementById('inventorySearchInput');
+        const term = (searchInput?.value || '').trim().toLowerCase();
+        const rows = document.querySelectorAll('.inventory-table tbody tr');
+
+        rows.forEach((row) => {
+            const productName = (row.getAttribute('data-product') || '').toLowerCase();
+
+            // Keep placeholder rows (no data rows) always visible.
+            if (!productName) {
+                row.style.display = '';
+                return;
+            }
+
+            row.style.display = productName.includes(term) ? '' : 'none';
+        });
     }
 
     window.viewBatches = async function(productName, productId) {
@@ -735,6 +780,11 @@ function renderInventoryTable(array $items): string {
 
     // Add event listeners to buttons using data attributes
     document.addEventListener('DOMContentLoaded', function() {
+        const inventorySearchInput = document.getElementById('inventorySearchInput');
+        if (inventorySearchInput) {
+            inventorySearchInput.addEventListener('input', applyInventorySearch);
+        }
+
         document.querySelectorAll('.btn-batches').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -748,6 +798,8 @@ function renderInventoryTable(array $items): string {
                 }
             });
         });
+
+        applyInventorySearch();
     });
 </script>
 </body>

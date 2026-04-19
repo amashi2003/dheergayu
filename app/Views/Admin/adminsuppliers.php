@@ -57,6 +57,7 @@ switch ($action) {
             <a href="adminpayments.php" class="nav-btn">Payments</a>
             <button class="nav-btn active">Supplier Info</button>
             <a href="admincontact.php" class="nav-btn">Contact Submissions</a>
+                <a href="adminreports.php" class="nav-btn">Reports</a>
         </nav>
         
         <div class="user-section">

@@ -587,6 +587,7 @@ while ($row = $statusResult->fetch_assoc()) {
             <a href="adminpayments.php" class="nav-btn">Payments</a>
             <a href="adminsuppliers.php" class="nav-btn">Supplier-info</a>
             <button class="nav-btn active">Contact Submissions</button>
+                <a href="adminreports.php" class="nav-btn">Reports</a>
         </nav>
         
         <div class="user-section">

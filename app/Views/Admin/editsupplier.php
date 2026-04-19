@@ -172,6 +172,7 @@ if (!$supplier) {
             <a href="adminusers.php" class="nav-btn">Users</a>
             <a href="admintreatment.php" class="nav-btn">Treatments</a>
             <a href="adminsuppliers.php" class="nav-btn active">Supplier Info</a>
+                <a href="adminreports.php" class="nav-btn">Reports</a>
         </nav>
         
         <div class="user-section">
