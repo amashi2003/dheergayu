@@ -208,7 +208,7 @@ if (!empty($_SESSION['user_id'])) {
                 <input type="hidden" id="edit_request_id" name="request_id">
                 <div class="form-group">
                     <label for="edit_product_name">Product Name *</label>
-                    <input type="text" id="edit_product_name" name="product_name" required>
+                    <input type="text" id="edit_product_name" name="product_name" required readonly style="background:#f8f9fa;cursor:not-allowed;">
                 </div>
                 <div class="form-group">
                     <label for="edit_quantity">Quantity *</label>
