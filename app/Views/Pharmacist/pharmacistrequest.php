@@ -543,10 +543,6 @@ if (!empty($_SESSION['user_id'])) {
             document.getElementById('inv_quantity').value = qty;
 
             var _tn = new Date(); var today = _tn.getFullYear() + '-' + String(_tn.getMonth()+1).padStart(2,'0') + '-' + String(_tn.getDate()).padStart(2,'0');
-            document.getElementById('inv_mfd').max = today;
-            document.getElementById('inv_exp').min = today;
-            document.getElementById('inv_mfd').value = '';
-            document.getElementById('inv_exp').value = '';
             document.getElementById('inv_batch_number').value = 'Loading...';
 
             document.getElementById('addInventoryModal').style.display = 'block';
